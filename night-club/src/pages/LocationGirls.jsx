@@ -321,45 +321,127 @@ export default function LocationGirls() {
   );
 
   const atmosphereTiles = useMemo(
-    () => [
-      {
-        title: "Main Club Floor",
-        desc: "Experience the pulse of the night with world-class sound and lighting.",
-        img: "/wp-content/uploads/2026/05/hotel-1-scaled.webp",
-        className: "md:col-span-2 md:row-span-2",
-        pad: "p-8",
-        heading: "font-['Epilogue'] text-lg md:text-2xl font-extrabold uppercase tracking-widest",
-        text: "font-['Be_Vietnam_Pro'] text-white/70 max-w-sm opacity-0 group-hover:opacity-100 transition-opacity duration-500",
-      },
-      {
-        title: "Designer Suite",
-        desc: "Ultimate privacy and luxury comfort.",
-        img: "/wp-content/uploads/2026/05/hotel-2-scaled.webp",
-        className: "",
-        pad: "p-4",
-        heading: "font-['Epilogue'] text-sm font-extrabold uppercase tracking-widest",
-        text: "text-[10px] text-white/70 opacity-0 group-hover:opacity-100 transition-opacity",
-      },
-      {
-        title: "Premium Bar",
-        desc: "Exquisite cocktails and rare spirits.",
-        img: "/wp-content/uploads/2026/05/hotel-3-scaled.webp",
-        className: "",
-        pad: "p-4",
-        heading: "font-['Epilogue'] text-sm font-extrabold uppercase tracking-widest",
-        text: "text-[10px] text-white/70 opacity-0 group-hover:opacity-100 transition-opacity",
-      },
-      {
-        title: "VIP Lounge",
-        desc: "Refined elegance for exclusive gatherings.",
-        img: "/wp-content/uploads/2026/05/hotel-2-scaled.webp",
-        className: "md:col-span-2",
-        pad: "p-6",
-        heading: "font-['Epilogue'] text-lg lg:text-xl font-extrabold uppercase tracking-widest",
-        text: "font-['Be_Vietnam_Pro'] text-white/70 opacity-0 group-hover:opacity-100 transition-opacity",
-      },
-    ],
-    []
+    () => {
+      if (club === "nightclub") {
+        return [
+          {
+            title: "Main Club Floor",
+            desc: "Experience the pulse of the night with world-class sound and lighting.",
+            img: "/wp-content/uploads/2026/06/nightclub-atmosphere/Night Club/IMG_4786.PNG",
+            className: "md:col-span-2 md:row-span-2",
+            pad: "p-8",
+            heading: "font-['Epilogue'] text-lg md:text-2xl font-extrabold uppercase tracking-widest",
+            text: "font-['Be_Vietnam_Pro'] text-white/70 max-w-sm opacity-0 group-hover:opacity-100 transition-opacity duration-500",
+          },
+          {
+            title: "Designer Suite",
+            desc: "Ultimate privacy and luxury comfort.",
+            img: "/wp-content/uploads/2026/06/nightclub-atmosphere/Night Club/IMG_4783.PNG",
+            className: "",
+            pad: "p-4",
+            heading: "font-['Epilogue'] text-sm font-extrabold uppercase tracking-widest",
+            text: "text-[10px] text-white/70 opacity-0 group-hover:opacity-100 transition-opacity",
+          },
+          {
+            title: "Premium Bar",
+            desc: "Exquisite cocktails and rare spirits.",
+            img: "/wp-content/uploads/2026/06/nightclub-atmosphere/Night Club/IMG_4802.PNG",
+            className: "",
+            pad: "p-4",
+            heading: "font-['Epilogue'] text-sm font-extrabold uppercase tracking-widest",
+            text: "text-[10px] text-white/70 opacity-0 group-hover:opacity-100 transition-opacity",
+          },
+          {
+            title: "VIP Lounge",
+            desc: "Refined elegance for exclusive gatherings.",
+            img: "/wp-content/uploads/2026/06/nightclub-atmosphere/Night Club/IMG_4804.PNG",
+            className: "md:col-span-2",
+            pad: "p-6",
+            heading: "font-['Epilogue'] text-lg lg:text-xl font-extrabold uppercase tracking-widest",
+            text: "font-['Be_Vietnam_Pro'] text-white/70 opacity-0 group-hover:opacity-100 transition-opacity",
+          },
+        ];
+      }
+      if (club === "braunau" || club === "salzburg") {
+        return [
+          {
+            title: "Main Club Floor",
+            desc: "Experience the pulse of the night with world-class sound and lighting.",
+            img: "/wp-content/uploads/2026/06/laufhaus-atmosphere/Photos for laufhaus/IMG_4830.PNG",
+            className: "md:col-span-2 md:row-span-2",
+            pad: "p-8",
+            heading: "font-['Epilogue'] text-lg md:text-2xl font-extrabold uppercase tracking-widest",
+            text: "font-['Be_Vietnam_Pro'] text-white/70 max-w-sm opacity-0 group-hover:opacity-100 transition-opacity duration-500",
+          },
+          {
+            title: "Designer Suite",
+            desc: "Ultimate privacy and luxury comfort.",
+            img: "/wp-content/uploads/2026/06/laufhaus-atmosphere/Photos for laufhaus/IMG_4831.PNG",
+            className: "",
+            pad: "p-4",
+            heading: "font-['Epilogue'] text-sm font-extrabold uppercase tracking-widest",
+            text: "text-[10px] text-white/70 opacity-0 group-hover:opacity-100 transition-opacity",
+          },
+          {
+            title: "Premium Bar",
+            desc: "Exquisite cocktails and rare spirits.",
+            img: "/wp-content/uploads/2026/06/laufhaus-atmosphere/Photos for laufhaus/IMG_4833.PNG",
+            className: "",
+            pad: "p-4",
+            heading: "font-['Epilogue'] text-sm font-extrabold uppercase tracking-widest",
+            text: "text-[10px] text-white/70 opacity-0 group-hover:opacity-100 transition-opacity",
+          },
+          {
+            title: "VIP Lounge",
+            desc: "Refined elegance for exclusive gatherings.",
+            img: "/wp-content/uploads/2026/06/laufhaus-atmosphere/Photos for laufhaus/img4.jpeg",
+            className: "md:col-span-2",
+            pad: "p-6",
+            heading: "font-['Epilogue'] text-lg lg:text-xl font-extrabold uppercase tracking-widest",
+            text: "font-['Be_Vietnam_Pro'] text-white/70 opacity-0 group-hover:opacity-100 transition-opacity",
+          },
+        ];
+      }
+      return [
+        {
+          title: "Main Club Floor",
+          desc: "Experience the pulse of the night with world-class sound and lighting.",
+          img: "/wp-content/uploads/2026/05/hotel-1-scaled.webp",
+          className: "md:col-span-2 md:row-span-2",
+          pad: "p-8",
+          heading: "font-['Epilogue'] text-lg md:text-2xl font-extrabold uppercase tracking-widest",
+          text: "font-['Be_Vietnam_Pro'] text-white/70 max-w-sm opacity-0 group-hover:opacity-100 transition-opacity duration-500",
+        },
+        {
+          title: "Designer Suite",
+          desc: "Ultimate privacy and luxury comfort.",
+          img: "/wp-content/uploads/2026/05/hotel-2-scaled.webp",
+          className: "",
+          pad: "p-4",
+          heading: "font-['Epilogue'] text-sm font-extrabold uppercase tracking-widest",
+          text: "text-[10px] text-white/70 opacity-0 group-hover:opacity-100 transition-opacity",
+        },
+        {
+          title: "Premium Bar",
+          desc: "Exquisite cocktails and rare spirits.",
+          img: "/wp-content/uploads/2026/05/hotel-3-scaled.webp",
+          className: "",
+          pad: "p-4",
+          heading: "font-['Epilogue'] text-sm font-extrabold uppercase tracking-widest",
+          text: "text-[10px] text-white/70 opacity-0 group-hover:opacity-100 transition-opacity",
+        },
+        {
+          title: "VIP Lounge",
+          desc: "Refined elegance for exclusive gatherings.",
+          img: "/wp-content/uploads/2026/05/hotel-2-scaled.webp",
+          className: "md:col-span-2",
+          pad: "p-6",
+          heading: "font-['Epilogue'] text-lg lg:text-xl font-extrabold uppercase tracking-widest",
+          text: "font-['Be_Vietnam_Pro'] text-white/70 opacity-0 group-hover:opacity-100 transition-opacity",
+        },
+      ];
+    },
+    [club]
   );
 
   useEffect(() => {

@@ -21,7 +21,7 @@ const socialLinks = [
 ];
 
 const neonBadgeClass =
-  "inline-flex h-7 md:h-8 lg:h-11 items-center justify-center rounded-md border-2 border-[#ff00ff] bg-transparent px-3 md:px-5 lg:px-7 font-['Epilogue'] text-[12px] md:text-[16px] lg:text-[25px] font-black leading-none tracking-wide text-[#ffabf3] shadow-[0_0_5px_#FF00FF,0_0_15px_#FF00FF,0_0_30px_rgba(255,0,255,0.3)] whitespace-nowrap";
+  "inline-flex h-7 md:h-8 lg:h-9 items-center justify-center rounded-md border-2 border-[#ff00ff] bg-transparent px-3 md:px-4 lg:px-5 font-['Epilogue'] text-[11px] md:text-[13px] lg:text-[17px] font-semibold leading-none tracking-wide text-[#ffabf3] whitespace-nowrap";
 
 function LangDropdown({ selectedLabel, isOpen, onToggle, onSelect }) {
   const { language } = useLanguage();
@@ -124,19 +124,15 @@ export default function Footer() {
           </div>
           {socialLinks.map(({ label, href, Icon }) => (
             <a key={label} target="_blank" rel="noopener noreferrer"
-              className={["transition-transform duration-200 hover:scale-110 flex items-center justify-center",
-                label === "facebook" ? "text-[#1877F2]" : "",
-                label === "instagram" ? "text-[#E4405F]" : "",
-                label === "twitter" ? "text-white" : "",
-                label === "youtube" ? "text-[#FF0000]" : "",
-              ].join(" ")}
+              className="transition-transform duration-200 hover:scale-110 flex items-center justify-center text-white"
               href={href} aria-label={label}
             >
               <Icon className="w-3.5 h-3.5" />
             </a>
           ))}
           <div className={neonBadgeClass}>
-            18+ Adults Only
+            <span className="text-[#00e5ff]">18+&nbsp;</span>
+            <span>Adults Only</span>
           </div>
         </div>
 
@@ -144,74 +140,76 @@ export default function Footer() {
           <div className="flex flex-wrap justify-center items-center gap-1.5 font-['Epilogue'] text-[7px] font-medium uppercase tracking-wider text-white/30">
             <span>© 2026 Pascha Nightlife</span>
             <span className="text-white/10">|</span>
-            <a href="http://night.test/legal-notice" className="hover:text-white transition-colors">{t("legal_notice")}</a>
+            <a href="/legal-notice" className="hover:text-white transition-colors">{t("legal_notice")}</a>
             <span className="text-white/10">|</span>
-            <a href="http://night.test/privacy-policy" className="hover:text-white transition-colors">{t("privacy_policy")}</a>
+            <a href="/privacy-policy" className="hover:text-white transition-colors">{t("privacy_policy")}</a>
           </div>
         </div>
       </div>
 
       {/* ── DESKTOP LAYOUT (sm+) ── */}
-      <div className="hidden sm:flex flex-col w-full items-center gap-0">
-        <div className="grid grid-cols-[1fr_auto_auto_auto_1fr] items-center gap-2 md:gap-5 lg:gap-8 w-full">
-          <div className="flex items-center justify-start">
-            <LangDropdown
-              selectedLabel={selectedLabel}
-              isOpen={isLanguageOpen}
-              onToggle={() => setIsLanguageOpen((o) => !o)}
-              onSelect={(code) => { setLanguage(code); setIsLanguageOpen(false); }}
-            />
-          </div>
+      <div className="hidden sm:flex w-full items-center justify-between px-2 lg:px-4 gap-4">
+        {/* Left Side */}
+        <div className="flex items-center flex-1 justify-start">
+          <LangDropdown
+            selectedLabel={selectedLabel}
+            isOpen={isLanguageOpen}
+            onToggle={() => setIsLanguageOpen((o) => !o)}
+            onSelect={(code) => { setLanguage(code); setIsLanguageOpen(false); }}
+          />
+        </div>
 
+        {/* Center Side */}
+        <div className="flex items-center justify-center gap-4 lg:gap-8">
+          {/* Open 24/7 */}
           <div className={neonBadgeClass}>
             <span>Open&nbsp;</span>
             <span className="text-[#00e5ff]">24/7</span>
           </div>
 
-          <div className="flex justify-center items-center gap-2 md:gap-3 lg:gap-6">
-            {socialLinks.map(({ label, href, Icon }) => (
-              <a key={label} target="_blank" rel="noopener noreferrer"
-                className={["transition-transform duration-200 hover:scale-110 flex items-center justify-center",
-                  label === "facebook" ? "text-[#1877F2]" : "",
-                  label === "instagram" ? "text-[#E4405F]" : "",
-                  label === "twitter" ? "text-white" : "",
-                  label === "youtube" ? "text-[#FF0000]" : "",
-                ].join(" ")}
-                href={href} aria-label={label}
-              >
-                <Icon className="w-4 h-4 lg:w-5 lg:h-5" />
-              </a>
-            ))}
+          {/* Socials & Copyright */}
+          <div className="flex flex-col items-center gap-2 mt-1">
+            <div className="flex justify-center items-center gap-3 lg:gap-5">
+              {socialLinks.map(({ label, href, Icon }) => (
+                <a key={label} target="_blank" rel="noopener noreferrer"
+                  className="transition-transform duration-200 hover:scale-110 flex items-center justify-center text-white"
+                  href={href} aria-label={label}
+                >
+                  <Icon className="w-4 h-4 lg:w-[22px] lg:h-[22px]" />
+                </a>
+              ))}
+            </div>
+            
+            <div className="flex flex-wrap justify-center items-center gap-1.5 lg:gap-2 font-['Epilogue'] text-[7px] lg:text-[8.5px] font-medium uppercase tracking-widest text-white/40">
+              <span>© 2026 Pascha Nightlife</span>
+              <span className="text-white/10">|</span>
+              <a href="/legal-notice" className="hover:text-white transition-colors">{t("legal_notice")}</a>
+              <span className="text-white/10">|</span>
+              <a href="/privacy-policy" className="hover:text-white transition-colors">{t("privacy_policy")}</a>
+            </div>
           </div>
 
+          {/* 18+ Adults Only */}
           <div className={neonBadgeClass}>
-            18+ Adults Only
-          </div>
-
-          <div className="flex justify-end items-center">
-            <a
-              href={WHATSAPP_LINK}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="h-[22px] lg:h-10 px-2 lg:px-4 rounded-full bg-white/5 flex items-center justify-center gap-1 text-white hover:text-[#ffabf3] transition-all active:opacity-80 no-hover-scale"
-              aria-label={t("live_chat")}
-            >
-              <FaWhatsapp className="w-2.5 h-2.5 lg:w-6 lg:h-6 text-[#25D366]" />
-              <span className="text-[6.5px] lg:text-[11.5px] font-bold uppercase tracking-widest leading-none translate-y-[0.5px]">
-                {t("live_chat")}
-              </span>
-            </a>
+            <span className="text-[#00e5ff]">18+&nbsp;</span>
+            <span>Adults Only</span>
           </div>
         </div>
 
-        <div className="w-full text-center mt-0.5 lg:mt-1">
-          <div className="flex flex-wrap justify-center items-center gap-2 lg:gap-3 font-['Epilogue'] text-[6.5px] lg:text-[7.5px] font-medium uppercase tracking-wider text-white/30">
-            <span>© 2026 Pascha Nightlife</span>
-            <span className="text-white/10">|</span>
-            <a href="http://night.test/legal-notice" className="hover:text-white transition-colors">{t("legal_notice")}</a>
-            <span className="text-white/10">|</span>
-            <a href="http://night.test/privacy-policy" className="hover:text-white transition-colors">{t("privacy_policy")}</a>
-          </div>
+        {/* Right Side */}
+        <div className="flex items-center flex-1 justify-end">
+          <a
+            href={WHATSAPP_LINK}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="h-8 lg:h-11 px-4 lg:px-6 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center gap-2 text-white transition-all border border-white/10 backdrop-blur-sm"
+            aria-label={t("live_chat")}
+          >
+            <FaWhatsapp className="w-4 h-4 lg:w-5 lg:h-5 text-[#25D366]" />
+            <span className="text-[10px] lg:text-[13px] font-bold uppercase tracking-widest leading-none translate-y-[1px]">
+              {t("live_chat")}
+            </span>
+          </a>
         </div>
       </div>
     </footer>

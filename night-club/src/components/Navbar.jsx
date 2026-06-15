@@ -113,6 +113,14 @@ export default function Navbar() {
             >
               {t("free_dating_appointment")}
             </button>
+            <a
+              href="https://paschasexportal.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 xl:px-5 xl:py-2 rounded-lg bg-[#ff00ff] text-white border border-white/20 font-bold text-[10px] xl:text-[11px] 2xl:text-[12px] uppercase tracking-wider hover:bg-[#FF00FF] hover:brightness-110 hover:shadow-[0_0_20px_rgba(255,0,255,0.6)] transition-all duration-300 active:scale-95 no-hover-scale whitespace-nowrap"
+            >
+              Pascha Sex Portel
+            </a>
           </div>
         </div>
 
@@ -208,6 +216,7 @@ export default function Navbar() {
             {[
               { label: t("get_appointment"), path: "/girls/all" },
               { label: t("free_dating_appointment"), path: "#" },
+              { label: "Pascha Sex Portel", path: "https://paschasexportal.com/" },
               { label: t("live_video_chat"), path: "https://call.paschasexportal.com/?room=b36669dc-ca5c-40d2-9c8c-392a62affafb" },
               { label: t("shop_at_apeshop"), path: "https://apeshop.at/" },
             ].map((item) => (

@@ -20,12 +20,31 @@ export default function WorkWithUs() {
   
   const [bookingStatus, setBookingStatus] = useState(null); // { success: boolean, message: string }
 
+  const [step, setStep] = useState(1);
+  const [showModal, setShowModal] = useState(false);
+  const [showChoiceModal, setShowChoiceModal] = useState(false);
+  const [showNcModal, setShowNcModal] = useState(false);
+  const [showThankYou, setShowThankYou] = useState(false);
+  const [selectedAvailDates, setSelectedAvailDates] = useState([]);
+  const [reqLoading, setReqLoading] = useState(false);
+  const [reqMsg, setReqMsg] = useState(null);
+  const [ncReqFrom, setNcReqFrom] = useState("");
+  const [ncReqTo, setNcReqTo] = useState("");
+  const [ncReqLoading, setNcReqLoading] = useState(false);
+  const [ncReqMsg, setNcReqMsg] = useState(null);
+  const [selectedLocation, setSelectedLocation] = useState("");
+
   // Category-based request state
   const [selectedCategory, setSelectedCategory] = useState("");
   const [requestLoading, setRequestLoading] = useState(false);
   const [requestMsg, setRequestMsg] = useState(null);
 
   const CATEGORIES = ["EU Ladies/Non Asian Ladies", "Chinese/Asian Ladies", "Trans Ladies"];
+
+  const LOCATIONS = [
+    { id: "braunau", label: "Pascha Laufhaus - Braunau am Inn" },
+    { id: "salzburg", label: "Pascha Laufhaus - Salzburg" },
+  ];
 
   const PRICES = {
     "EU Ladies/Non Asian Ladies": { braunau: 700, salzburg: 850 },
@@ -86,6 +105,13 @@ export default function WorkWithUs() {
       cancelled = true;
     };
   }, [locId, user, isWpAdmin, navigate]);
+
+  // Auto-show the new reservation choice modal for girls when entering braunau or salzburg pages
+  useEffect(() => {
+    if (user && user.user_type === "girl" && (activeLoc === "braunau" || activeLoc === "salzburg")) {
+      setShowChoiceModal(true);
+    }
+  }, [activeLoc, user]);
 
   // Extract all booked dates for the current location
   const getBookedDates = () => {
@@ -307,46 +333,38 @@ export default function WorkWithUs() {
               <div className="p-8 space-y-6">
                 {user && user.user_type === "girl" ? (
                   <>
-                    {/* Category Selection */}
-                    <div>
-                      <label className="block text-white/60 text-[10px] font-bold uppercase tracking-widest mb-3">
-                        Select Your Category
-                      </label>
-                      <div className="space-y-2">
-                        {CATEGORIES.map((cat) => (
-                          <button
-                            key={cat}
-                            type="button"
-                            onClick={() => {
-                              setSelectedCategory(cat);
-                              setBookingStatus(null);
-                            }}
-                            className={`w-full px-3 py-2.5 rounded-xl border font-bold text-[10px] uppercase tracking-wider transition-all duration-300 ${
-                              selectedCategory === cat
-                                ? "bg-[#E3087E] text-white border-[#E3087E] shadow-lg shadow-[#E3087E]/30"
-                                : "bg-white/5 text-white/60 border-white/10 hover:bg-white/10 hover:text-white"
-                            }`}
-                          >
-                            {cat}
-                          </button>
-                        ))}
+                    <div className="text-center mb-6">
+                      <div className="w-14 h-14 bg-[#E3087E]/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-[#E3087E]/30">
+                        <span className="material-symbols-outlined text-[#E3087E] text-2xl">calendar_month</span>
                       </div>
+                      <h3 className="text-white font-bold text-lg mb-2">New Reservation</h3>
+                      <p className="text-white/40 text-xs leading-relaxed font-['Be_Vietnam_Pro']">
+                        Click below to start your room or nightclub reservation request in a few easy steps.
+                      </p>
                     </div>
 
-                    {selectedCategory && (
-                      <div className="p-4 bg-[#E3087E]/5 border border-[#E3087E]/20 rounded-2xl text-center">
-                        <div className="text-[10px] text-white/40 uppercase tracking-widest font-bold mb-1">Weekly Rate</div>
-                        <div className="text-xl font-extrabold text-[#E3087E]">
-                          €{perWeekRate}
-                          <span className="text-xs text-white/40 font-normal block mt-0.5">
-                            {activeLoc === "salzburg" ? "Salzburg" : "Braunau"} • {selectedCategory}
-                          </span>
-                        </div>
+                    <button 
+                      type="button"
+                      onClick={() => setShowChoiceModal(true)}
+                      className="w-full py-4 mb-3 bg-[#E3087E] text-white font-bold uppercase tracking-[0.2em] rounded-2xl hover:bg-[#c0066a] transition-all shadow-[0_10px_30px_rgba(227,8,126,0.3)] text-xs flex items-center justify-center gap-2"
+                    >
+                      <span className="material-symbols-outlined text-sm">add_circle</span>
+                      New Reservation
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-center">
+                      <div className="w-14 h-14 bg-[#E3087E]/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-[#E3087E]/30">
+                        <span className="material-symbols-outlined text-[#E3087E] text-2xl">info</span>
                       </div>
-                    )}
+                      <h3 className="text-white font-bold text-lg mb-2">Manage Suite Booking</h3>
+                      <p className="text-white/40 text-xs leading-relaxed font-['Be_Vietnam_Pro']">
+                        Select available dates and suites to confirm your room reservation. The calendar operates from Sunday to Saturday.
+                      </p>
+                    </div>
 
-                    {(user?.user_type !== "girl" || selectedCategory) && (
-                    <div className="pt-4 border-t border-white/10 text-center">
+                    <div className="pt-4 border-t border-white/10 text-center mb-4">
                       <div className="text-[10px] text-white/40 uppercase tracking-widest font-bold mb-1">
                         {weeksCount > 1 ? "Total Booking Cost" : "Weekly Rate"}
                       </div>
@@ -357,11 +375,10 @@ export default function WorkWithUs() {
                         </span>
                       </div>
                     </div>
-                    )}
 
                     {/* Selected Date Box */}
                     {startDate && endDate && (
-                      <div className="p-4 bg-white/5 border border-white/10 rounded-2xl space-y-2 animate-in slide-in-from-bottom-4 duration-300">
+                      <div className="p-4 bg-white/5 border border-white/10 rounded-2xl space-y-2 mb-4 animate-in slide-in-from-bottom-4 duration-300">
                         <div className="flex justify-between items-center">
                           <div className="text-[9px] text-[#00ff88] font-bold uppercase tracking-widest">Selected Period</div>
                           <div className="text-[9px] bg-[#E3087E]/20 text-[#E3087E] px-2 py-0.5 rounded font-bold uppercase tracking-wide">
@@ -384,7 +401,7 @@ export default function WorkWithUs() {
 
                     {/* Booking Status Message */}
                     {bookingStatus && (
-                      <div className={`p-4 rounded-2xl border text-xs text-center font-medium animate-in fade-in duration-300 ${
+                      <div className={`p-4 rounded-2xl border text-xs text-center font-medium animate-in fade-in duration-300 mb-4 ${
                         bookingStatus.success
                           ? "bg-[#00ff88]/10 text-[#00ff88] border-[#00ff88]/20"
                           : "bg-[#ff0000]/10 text-red-400 border-red-500/20"
@@ -393,17 +410,12 @@ export default function WorkWithUs() {
                       </div>
                     )}
 
-                    {/* Submit reservation button */}
-                    {user?.user_type === "girl" && !selectedCategory ? (
-                      <div className="text-center p-4 bg-white/5 border border-white/5 rounded-2xl text-white/40 text-[10px] uppercase tracking-widest font-bold">
-                        Select a category first
-                      </div>
-                    ) : startDate && endDate ? (
+                    {startDate && endDate ? (
                       <button
                         type="button"
                         onClick={handleBookingSubmit}
                         disabled={loading}
-                        className="w-full py-4 bg-[#E3087E] text-white font-bold uppercase tracking-[0.2em] rounded-2xl hover:bg-[#c0066a] disabled:bg-[#E3087E]/50 transition-all shadow-[0_10px_30px_rgba(227,8,126,0.3)] text-xs flex items-center justify-center gap-2"
+                        className="w-full py-4 mb-3 bg-[#E3087E] text-white font-bold uppercase tracking-[0.2em] rounded-2xl hover:bg-[#c0066a] disabled:bg-[#E3087E]/50 transition-all shadow-[0_10px_30px_rgba(227,8,126,0.3)] text-xs flex items-center justify-center gap-2"
                       >
                         {loading ? (
                           <>
@@ -413,29 +425,17 @@ export default function WorkWithUs() {
                         ) : (
                           <>
                             <span className="material-symbols-outlined text-sm">send</span>
-                          {user?.user_type === "girl" ? `Request (€${totalCost.toFixed(2)})` : `Reserve Suite (€${totalCost.toFixed(2)})`}
+                            Reserve Suite (€{totalCost.toFixed(2)})
                           </>
                         )}
                       </button>
                     ) : (
-                      <div className="text-center p-4 bg-white/5 border border-white/5 rounded-2xl text-white/40 text-[10px] uppercase tracking-widest font-bold">
+                      <div className="text-center p-4 bg-white/5 border border-white/5 rounded-2xl mb-3 text-white/40 text-[10px] uppercase tracking-widest font-bold">
                         Select a Sunday on calendar
                       </div>
                     )}
-                  </>
-                ) : (
-                  <>
-                    <div className="text-center">
-                      <div className="w-14 h-14 bg-[#E3087E]/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-[#E3087E]/30">
-                        <span className="material-symbols-outlined text-[#E3087E] text-2xl">info</span>
-                      </div>
-                      <h3 className="text-white font-bold text-lg mb-2">Manage Room Schedule</h3>
-                      <p className="text-white/40 text-xs leading-relaxed font-['Be_Vietnam_Pro']">
-                        Select available dates and suites to confirm your room reservation. The calendar operates from Sunday to Saturday.
-                      </p>
-                    </div>
 
-                    <div className="space-y-3">
+                    <div className="space-y-3 mb-4">
                       <div className="flex items-center gap-3 p-4 rounded-2xl bg-white/5 border border-white/10">
                         <span className="w-3 h-3 rounded-sm bg-[#E3087E]/30 border border-[#E3087E] flex-none" />
                         <span className="text-white/60 text-xs">Available / Booked week</span>
@@ -455,7 +455,8 @@ export default function WorkWithUs() {
                       <span className="material-symbols-outlined text-lg">chat</span>
                       Contact via WhatsApp
                     </a>
-                  </>
+
+                                      </>
                 )}
 
                 <div className="flex items-center justify-center gap-2 opacity-30 pt-2">
@@ -468,6 +469,302 @@ export default function WorkWithUs() {
         </div>
       </main>
 
+      {/* Choice Modal - Room vs Nightclub */}
+      {showChoiceModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" onClick={() => setShowChoiceModal(false)}>
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-md animate-in fade-in duration-300" />
+          <div className="relative bg-[#0c0f0f] border border-white/[0.08] rounded-3xl w-full max-w-sm shadow-[0_0_60px_rgba(227,8,126,0.2)] animate-in zoom-in-95 duration-300 p-6 sm:p-8" onClick={e => e.stopPropagation()}>
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#E3087E]/15 to-[#E3087E]/10 flex items-center justify-center mx-auto mb-3 text-[#E3087E] shadow-[0_0_20px_rgba(227,8,126,0.15)]">
+                <span className="material-symbols-outlined text-2xl">add_circle</span>
+              </div>
+              <h3 className="font-['Epilogue'] text-white font-black text-base uppercase tracking-widest">New Reservation</h3>
+              <p className="text-white/25 text-[10px] uppercase tracking-widest mt-1.5 font-bold">Choose reservation type</p>
+            </div>
+            <div className="space-y-3">
+              <button onClick={() => { setShowChoiceModal(false); setStep(1); setShowModal(true); }}
+                className="w-full px-5 py-4 rounded-xl font-bold text-sm transition-all duration-200 border text-left flex items-center justify-between bg-white/[0.02] border-white/[0.06] text-white/50 hover:bg-white/[0.06] hover:text-white hover:border-[#E3087E]/40 hover:shadow-[0_0_15px_rgba(227,8,126,0.10)] group">
+                <span className="flex items-center gap-3">
+                  <span className="material-symbols-outlined text-[#E3087E] text-lg">meeting_room</span>
+                  <span>Room Reservation</span>
+                </span>
+                <span className="material-symbols-outlined text-sm text-white/15 group-hover:text-white/40">arrow_forward_ios</span>
+              </button>
+              <button onClick={() => { setShowChoiceModal(false); setShowNcModal(true); }}
+                className="w-full px-5 py-4 rounded-xl font-bold text-sm transition-all duration-200 border text-left flex items-center justify-between bg-white/[0.02] border-white/[0.06] text-white/50 hover:bg-white/[0.06] hover:text-white hover:border-[#E3087E]/40 hover:shadow-[0_0_15px_rgba(227,8,126,0.10)] group">
+                <span className="flex items-center gap-3">
+                  <span className="material-symbols-outlined text-[#E3087E] text-lg">nightlife</span>
+                  <span>Nightclub Book</span>
+                </span>
+                <span className="material-symbols-outlined text-sm text-white/15 group-hover:text-white/40">arrow_forward_ios</span>
+              </button>
+            </div>
+            <button onClick={() => setShowChoiceModal(false)} className="w-full mt-4 py-2.5 text-white/25 text-[10px] uppercase tracking-widest font-bold hover:text-white/50 transition-colors rounded-xl border border-dashed border-white/[0.06] hover:border-white/20">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Nightclub Assignment Modal */}
+      {showNcModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" onClick={() => setShowNcModal(false)}>
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-md animate-in fade-in duration-300" />
+          <div className="relative bg-[#0c0f0f] border border-white/[0.08] rounded-3xl w-full max-w-lg shadow-[0_0_60px_rgba(227,8,126,0.2)] animate-in zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>
+            <div className="bg-gradient-to-b from-[#0c0f0f] via-[#0c0f0f] to-transparent px-5 sm:px-7 pt-5 sm:pt-7 pb-4 border-b border-white/[0.06] flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#E3087E]/15 to-[#E3087E]/10 flex items-center justify-center text-[#E3087E]">
+                  <span className="material-symbols-outlined text-lg">nightlife</span>
+                </div>
+                <div>
+                  <h3 className="font-['Epilogue'] text-white font-black text-sm uppercase tracking-widest">Nightclub Assignment</h3>
+                  <p className="text-white/25 text-[9px] uppercase tracking-widest font-bold mt-0.5">Request nightclub booking</p>
+                </div>
+              </div>
+              <button onClick={() => setShowNcModal(false)} className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-center text-white/30 hover:text-white hover:border-white/20 hover:bg-white/[0.08] transition-all duration-200">
+                <span className="material-symbols-outlined text-sm">close</span>
+              </button>
+            </div>
+            <div className="p-5 sm:p-7">
+              <div className="bg-gradient-to-br from-[#E3087E]/10 to-[#ff00ff]/5 border border-[#E3087E]/30 rounded-2xl p-5 sm:p-6">
+                <h4 className="text-white font-bold text-xs uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[#E3087E] text-sm">schedule</span>
+                  Select Your Availability
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="text-white/50 text-[10px] uppercase tracking-widest font-bold block mb-1.5">Available From</label>
+                    <input type="datetime-local" value={ncReqFrom} onChange={e => setNcReqFrom(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-[#E3087E]/50 transition-colors" />
+                  </div>
+                  <div>
+                    <label className="text-white/50 text-[10px] uppercase tracking-widest font-bold block mb-1.5">Available To</label>
+                    <input type="datetime-local" value={ncReqTo} onChange={e => setNcReqTo(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-[#E3087E]/50 transition-colors" />
+                  </div>
+                </div>
+                <button onClick={async () => {
+                  if (!ncReqFrom || !ncReqTo) return;
+                  setNcReqLoading(true);
+                  setNcReqMsg(null);
+                  try {
+                    const res = await fetch("/wp-json/pascha/v1/nightclub/request", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ email: user.email, nightclub_from_datetime: ncReqFrom, nightclub_to_datetime: ncReqTo })
+                    });
+                    const data = await res.json();
+                    if (res.ok && data.success) {
+                      setNcReqMsg({ success: true, message: data.message });
+                      setNcReqFrom(""); setNcReqTo("");
+                      const r = await fetch(`/wp-json/pascha/v1/reservations?t=${Date.now()}`);
+                      if (r.ok) setReservations(await r.json());
+                    } else {
+                      setNcReqMsg({ success: false, message: data.message || "Request failed." });
+                    }
+                  } catch (err) {
+                    setNcReqMsg({ success: false, message: "Network error." });
+                  } finally { setNcReqLoading(false); }
+                }} disabled={ncReqLoading || !ncReqFrom || !ncReqTo} className="w-full py-3 bg-[#E3087E] text-white font-bold uppercase tracking-widest rounded-xl text-[11px] hover:brightness-110 transition-all shadow-[0_8px_25px_rgba(227,8,126,0.3)] flex items-center justify-center gap-2 disabled:opacity-40">
+                  {ncReqLoading ? <><span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" /> Submitting...</> : <><span className="material-symbols-outlined text-sm">send</span> Submit Request</>}
+                </button>
+                {ncReqMsg && (
+                  <p className={`mt-3 text-[11px] text-center font-bold uppercase tracking-widest ${ncReqMsg.success ? 'text-[#00ff88]' : 'text-red-400'}`}>{ncReqMsg.message}</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Overlay - Root Level */}
+      {showModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" onClick={() => setShowModal(false)}>
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-md animate-in fade-in duration-300" />
+          <div className="relative bg-[#0c0f0f] border border-white/[0.08] rounded-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-[0_0_60px_rgba(227,8,126,0.2)] mx-2 sm:mx-0 animate-in zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>
+
+            <div className="sticky top-0 bg-gradient-to-b from-[#0c0f0f] via-[#0c0f0f] to-transparent z-10 px-5 sm:px-7 pt-5 sm:pt-7 pb-3 sm:pb-4 flex items-center justify-between border-b border-white/[0.06]">
+              <div className="flex items-center gap-2 sm:gap-3">
+                {[1,2,3,4].map(s => (
+                  <div key={s} className={`
+                    w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[9px] sm:text-[10px] font-extrabold tracking-widest transition-all duration-300
+                    ${step === s ? 'bg-[#E3087E] text-white shadow-[0_0_15px_rgba(227,8,126,0.4)]' :
+                      step > s ? 'bg-[#00ff88]/15 text-[#00ff88] border border-[#00ff88]/30' :
+                      'bg-white/[0.04] text-white/25 border border-white/[0.06]'}
+                  `}>
+                    {step > s ? <span className="material-symbols-outlined text-[11px] sm:text-xs">check</span> : s}
+                  </div>
+                ))}
+              </div>
+              <button onClick={() => setShowModal(false)} className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-center text-white/30 hover:text-white hover:border-white/20 hover:bg-white/[0.08] transition-all duration-200">
+                <span className="material-symbols-outlined text-sm">close</span>
+              </button>
+            </div>
+
+            <div className="p-5 sm:p-7">
+              {step === 1 && (
+                <div className="space-y-5">
+                  <div className="text-center">
+                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#E3087E]/15 to-[#E3087E]/10 flex items-center justify-center mx-auto mb-3 text-[#E3087E] shadow-[0_0_20px_rgba(227,8,126,0.15)]">
+                      <span className="material-symbols-outlined text-2xl">category</span>
+                    </div>
+                    <h3 className="font-['Epilogue'] text-white font-black text-base sm:text-lg uppercase tracking-widest">Select Your Category</h3>
+                    <p className="text-white/25 text-[10px] uppercase tracking-widest mt-1 font-bold">Step 1 of 4</p>
+                  </div>
+                  <div className="space-y-2.5 pt-1">
+                    {CATEGORIES.map(cat => (
+                      <button key={cat} onClick={() => { setSelectedCategory(cat); setStep(2); }}
+                        className="w-full px-5 py-4 rounded-xl font-bold text-sm transition-all duration-200 border text-left flex items-center justify-between bg-white/[0.02] border-white/[0.06] text-white/50 hover:bg-white/[0.06] hover:text-white hover:border-[#E3087E]/40 hover:shadow-[0_0_15px_rgba(227,8,126,0.10)] group">
+                        {cat}
+                        <span className="material-symbols-outlined text-sm text-white/15 group-hover:text-white/40 transition-colors">arrow_forward_ios</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {step === 2 && (
+                <div className="space-y-5">
+                  <div className="text-center">
+                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#E3087E]/15 to-[#E3087E]/10 flex items-center justify-center mx-auto mb-3 text-[#E3087E] shadow-[0_0_20px_rgba(227,8,126,0.15)]">
+                      <span className="material-symbols-outlined text-2xl">location_on</span>
+                    </div>
+                    <h3 className="font-['Epilogue'] text-white font-black text-base sm:text-lg uppercase tracking-widest">Select Location</h3>
+                    <p className="text-white/25 text-[10px] uppercase tracking-widest mt-1 font-bold">Step 2 of 4</p>
+                  </div>
+                  <div className="space-y-2.5 pt-1">
+                    {LOCATIONS.map(loc => (
+                      <button key={loc.id} onClick={() => { setSelectedLocation(loc.id); setStep(3); }}
+                        className="w-full px-5 py-4 rounded-xl font-bold text-sm transition-all duration-200 border text-left flex items-center justify-between bg-white/[0.02] border-white/[0.06] text-white/50 hover:bg-white/[0.06] hover:text-white hover:border-[#E3087E]/40 hover:shadow-[0_0_15px_rgba(227,8,126,0.10)] group">
+                        <span><span className="material-symbols-outlined text-sm mr-2 align-middle text-white/30">location_on</span>{loc.label}</span>
+                        <span className="material-symbols-outlined text-sm text-white/15 group-hover:text-white/40 transition-colors">arrow_forward_ios</span>
+                      </button>
+                    ))}
+                  </div>
+                  <button onClick={() => setStep(1)} className="w-full py-3 text-white/25 text-[10px] uppercase tracking-widest font-bold hover:text-white/50 transition-colors rounded-xl border border-dashed border-white/[0.06] hover:border-white/20">← Back to Categories</button>
+                </div>
+              )}
+
+              {step === 3 && (
+                <div className="space-y-5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#E3087E]/15 to-[#E3087E]/10 flex items-center justify-center text-[#E3087E]">
+                        <span className="material-symbols-outlined text-lg">calendar_month</span>
+                      </div>
+                      <div>
+                        <h3 className="font-['Epilogue'] text-white font-black text-sm sm:text-base uppercase tracking-widest">Select Dates</h3>
+                        <p className="text-white/25 text-[9px] uppercase tracking-widest font-bold">Step 3 of 4</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-white/20 text-[8px] uppercase tracking-widest font-bold">Marked</p>
+                      <p className="text-white font-black text-base">{selectedAvailDates.length} days</p>
+                    </div>
+                  </div>
+                  <div className="-mx-5 sm:-mx-0">
+                    <ReservationCalendar mode="manage" bookedDates={bookedDates} onAvailabilityChange={setSelectedAvailDates} />
+                  </div>
+                  <div className="flex justify-between items-center pt-1">
+                    <button onClick={() => setStep(2)} className="px-4 py-2.5 text-white/25 text-[9px] uppercase tracking-widest font-bold hover:text-white/50 transition-colors rounded-xl border border-dashed border-white/[0.06] hover:border-white/20">← Back</button>
+                    <button onClick={() => selectedAvailDates.length > 0 && setStep(4)}
+                      className={`px-6 py-2.5 rounded-xl font-bold uppercase tracking-widest text-[10px] transition-all duration-200 ${selectedAvailDates.length > 0 ? 'bg-[#E3087E] text-white shadow-[0_0_20px_rgba(227,8,126,0.3)] hover:brightness-110' : 'bg-white/[0.04] text-white/20 cursor-not-allowed border border-white/[0.06]'}`}>
+                      Continue →
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {step === 4 && (
+                <div className="space-y-5">
+                  <div className="text-center">
+                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#00ff88]/15 to-[#00ff88]/5 flex items-center justify-center mx-auto mb-3 text-[#00ff88] shadow-[0_0_20px_rgba(0,255,136,0.15)]">
+                      <span className="material-symbols-outlined text-2xl">assignment_turned_in</span>
+                    </div>
+                    <h3 className="font-['Epilogue'] text-white font-black text-base sm:text-lg uppercase tracking-widest">Confirm & Submit</h3>
+                    <p className="text-white/25 text-[10px] uppercase tracking-widest mt-1 font-bold">Step 4 of 4</p>
+                  </div>
+                  <div className="space-y-3 pt-1">
+                    {[{icon:'category',label:'Category',val:selectedCategory},{icon:'location_on',label:'Location',val:LOCATIONS.find(l=>l.id===selectedLocation)?.label},{icon:'calendar_month',label:'Duration',val:`${selectedAvailDates.length} days (${Math.max(1,Math.ceil(selectedAvailDates.length/7))} ${Math.max(1,Math.ceil(selectedAvailDates.length/7))===1?'week':'weeks'})`}].map((item,i) => (
+                      <div key={i} className="bg-white/[0.02] border border-white/[0.06] rounded-2xl px-4 py-3.5 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <span className="material-symbols-outlined text-[#E3087E] text-lg">{item.icon}</span>
+                          <div>
+                            <p className="text-white/25 text-[9px] uppercase tracking-widest font-bold">{item.label}</p>
+                            <p className="text-white font-bold text-sm mt-0.5">{item.val}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="bg-gradient-to-r from-[#E3087E]/10 to-[#E3087E]/5 border border-[#E3087E]/20 rounded-2xl px-4 py-4 flex items-center justify-between">
+                      <div>
+                        <p className="text-white/25 text-[9px] uppercase tracking-widest font-bold">Total Price</p>
+                        <p className="text-white/40 text-[10px] mt-0.5">{PRICES[selectedCategory]?.[selectedLocation]||0}€/week &times; {Math.max(1,Math.ceil(selectedAvailDates.length/7))}</p>
+                      </div>
+                      <p className="text-2xl font-black text-white">€{(PRICES[selectedCategory]?.[selectedLocation]||0)*Math.max(1,Math.ceil(selectedAvailDates.length/7))}</p>
+                    </div>
+                  </div>
+                  {reqMsg && (
+                    <div className={`p-3 rounded-xl text-[10px] text-center font-bold uppercase tracking-widest ${reqMsg.type==='success'?'bg-[#00ff88]/10 text-[#00ff88] border border-[#00ff88]/20':'bg-red-500/10 text-red-400 border border-red-500/20'}`}>{reqMsg.text}</div>
+                  )}
+                  <div className="flex items-center justify-between gap-3 pt-1">
+                    <button onClick={() => setStep(3)} className="px-4 py-3 text-white/25 text-[10px] uppercase tracking-widest font-bold hover:text-white/50 transition-colors rounded-xl border border-dashed border-white/[0.06] hover:border-white/20">← Back</button>
+                    <button onClick={async()=>{
+                      setReqLoading(true); setReqMsg(null);
+                      try {
+                        const sorted = [...selectedAvailDates].map(d=>new Date(d)).sort((a,b)=>a-b);
+                        const startDate = sorted[0].toISOString().split('T')[0];
+                        const endDate = sorted[sorted.length-1].toISOString().split('T')[0];
+                        const price = (PRICES[selectedCategory]?.[selectedLocation]||0)*Math.max(1,Math.ceil(selectedAvailDates.length/7));
+                        const res = await fetch('/wp-json/pascha/v1/girls/request-reservation',{
+                          method:'POST',headers:{'Content-Type':'application/json'},
+                          body:JSON.stringify({email:user.email,category:selectedCategory,location:selectedLocation,start_date:startDate,end_date:endDate,price}),
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                          setSelectedCategory(""); setSelectedLocation(""); setSelectedAvailDates([]);
+                          fetchData();
+                          setShowModal(false);
+                          setShowThankYou(true);
+                        } else { setReqMsg({type:'error',text:data.message||'Request failed.'}); }
+                      } catch(err){ console.error(err); setReqMsg({type:'error',text:err.message||'Error'}); }
+                      finally{ setReqLoading(false); }
+                    }} disabled={reqLoading}
+                      className="px-8 py-3 bg-[#E3087E] text-white font-bold uppercase tracking-widest rounded-xl text-[11px] hover:brightness-110 transition-all shadow-[0_10px_30px_rgba(227,8,126,0.4)] flex items-center gap-2 disabled:opacity-50">
+                      {reqLoading ? <><span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" /> Submitting...</> : <><span className="material-symbols-outlined text-sm">send</span> Submit</>}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Thank You Popup */}
+      {showThankYou && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-md animate-in fade-in duration-300" />
+          <div className="relative bg-[#0c0f0f] border border-white/[0.08] rounded-3xl w-full max-w-sm shadow-[0_0_60px_rgba(227,8,126,0.2)] animate-in zoom-in-95 duration-300 p-6 sm:p-8" onClick={e => e.stopPropagation()}>
+            <div className="text-center">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#00ff88]/15 to-[#00ff88]/5 flex items-center justify-center mx-auto mb-4 text-[#00ff88] shadow-[0_0_20px_rgba(0,255,136,0.15)]">
+                <span className="material-symbols-outlined text-3xl">check_circle</span>
+              </div>
+              <h3 className="font-['Epilogue'] text-white font-black text-base sm:text-lg uppercase tracking-widest mb-4">Request Submitted!</h3>
+              <p className="text-white/70 text-sm leading-relaxed max-w-xs mx-auto">
+                Please wait for a call from the authority or give a call on this number:
+              </p>
+              <a href="tel:+436766826881" className="inline-block mt-3 text-lg font-bold text-[#ffabf3] hover:text-white transition-colors">
+                +43 676 6826881
+              </a>
+              <div className="mt-8">
+                <button onClick={() => { setShowThankYou(false); setShowModal(false); setStep(1); }}
+                  className="px-8 py-3 bg-white/[0.05] text-white/60 font-bold uppercase tracking-widest rounded-xl text-[11px] hover:bg-white/[0.1] hover:text-white transition-all border border-white/[0.08]">
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      
       <Footer />
     </div>
   );

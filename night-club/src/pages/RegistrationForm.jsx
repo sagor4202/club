@@ -226,7 +226,7 @@ export default function RegistrationForm() {
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
                     <div className="space-y-2">
-                      <label className={labelClass}>Service Name *</label>
+                      <label className={labelClass}>Working Name *</label>
                       <input 
                         type="text" 
                         name="serviceName"

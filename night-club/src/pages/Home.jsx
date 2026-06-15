@@ -460,9 +460,19 @@ export default function Home() {
         </section>
 
         <section className="w-full px-6 lg:px-8 py-[50px]">
-          <h2 className="font-['Epilogue'] text-4xl lg:text-5xl font-extrabold text-white mb-12 uppercase tracking-tighter text-center">
-            {t("our_services")}
-          </h2>
+          <div className="text-center mb-12">
+            <div className="relative inline-block pt-6 pb-8">
+              <div className="absolute top-0 left-[-20%] right-[-20%] h-0.5 bg-white"></div>
+              <h2 className="font-['Epilogue'] text-4xl lg:text-5xl font-extrabold text-[#FF00FF] uppercase tracking-tighter px-12">
+                {t("our_services")}
+              </h2>
+              <div className="absolute bottom-0 left-[-20%] right-[-20%] flex items-center justify-center">
+                <div className="h-0.5 bg-white flex-1"></div>
+                <span className="mx-3 text-white text-2xl leading-none">★</span>
+                <div className="h-0.5 bg-white flex-1"></div>
+              </div>
+            </div>
+          </div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 items-start">
             {destinations.slice(0, 3).map((loc, index) => {
               const [isExpanded, setIsExpanded] = React.useState(false);
@@ -522,7 +532,7 @@ export default function Home() {
         </section>
 
         {/* Highlighted Note Section */}
-        <section className="bg-[#0A0A26] py-16 px-6 lg:px-8 border-t border-white/5">
+        <section className="bg-[#0A0A26] py-[100px] px-6 lg:px-8 border-t border-white/5">
           <div className="max-w-4xl mx-auto text-center space-y-3">
             <p className="text-white text-base lg:text-lg font-['Be_Vietnam_Pro'] leading-relaxed">
               <span className="font-bold text-[#FF00FF]">{t("note")}:</span>{" "}
@@ -583,13 +593,17 @@ export default function Home() {
         {/* Info/Contact Section - Matches Image */}
         <section className="bg-[#2E2C7F] py-6 px-6 lg:px-8 text-white text-center border-t border-white/5">
           <div className="max-w-5xl mx-auto space-y-10 relative">
-            {/* 24/7 Sticker - Top Left */}
+            {/* 24/7 Sticker - Top Left (CSS Recreation) */}
             <div className="absolute top-2 sm:top-6 -left-4 sm:-left-24 z-10">
-              <img
-                src="/wp-content/uploads/2026/06/24-7%20support.png"
-                alt="24/7 Support"
-                className="h-16 sm:h-20 md:h-28 lg:h-44 w-auto"
-              />
+              <div className="relative h-16 w-16 sm:h-20 sm:w-20 md:h-28 md:w-28 lg:h-44 lg:w-44">
+                {/* Neon Circle */}
+                <div className="w-full h-full rounded-full border-[1.5px] lg:border-2 border-[#FF00FF] flex flex-col items-center justify-center shadow-[0_0_15px_rgba(255,0,255,0.4),inset_0_0_15px_rgba(255,0,255,0.4)] bg-[#2E2C7F]">
+                  <div className="font-['Epilogue'] font-black leading-[1.1] tracking-widest text-transparent flex flex-col items-center justify-center text-center scale-x-110">
+                    <span className="text-[10px] sm:text-[12px] md:text-[16px] lg:text-[26px]" style={{ WebkitTextStroke: '1.2px #FF00FF' }}>OPEN</span>
+                    <span className="text-[12px] sm:text-[14px] md:text-[20px] lg:text-[32px]" style={{ WebkitTextStroke: '1.2px #00e5ff' }}>24/7</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Logo Area */}
@@ -622,9 +636,9 @@ export default function Home() {
             <div className="h-[1px] w-28 bg-[#E3087E] mx-auto opacity-60" />
 
             <div className="flex justify-center items-center gap-6 text-[10px] sm:text-xs lg:text-sm font-['Be_Vietnam_Pro'] font-bold tracking-[0.2em] uppercase opacity-80">
-              <a href="http://night.test/legal-notice" className="hover:text-[#E3087E] transition-all">{t("legal_notice")}</a>
-              <span className="opacity-20">|</span>
-              <a href="http://night.test/privacy-policy" className="hover:text-[#E3087E] transition-all">{t("privacy_policy")}</a>
+              <a href="/legal-notice" className="hover:text-[#E3087E] transition-all">{t("legal_notice")}</a>
+              <span className="text-white/20">•</span>
+              <a href="/privacy-policy" className="hover:text-[#E3087E] transition-all">{t("privacy_policy")}</a>
             </div>
           </div>
         </section>
