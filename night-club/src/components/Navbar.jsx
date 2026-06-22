@@ -140,9 +140,12 @@ export default function Navbar() {
               href="https://apeshop.at/"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 xl:px-5 xl:py-2 rounded-lg bg-[#ff00ff] text-white border border-white/20 font-bold text-[10px] xl:text-[11px] 2xl:text-[12px] uppercase tracking-wider hover:bg-[#FF00FF] hover:brightness-110 hover:shadow-[0_0_20px_rgba(255,0,255,0.6)] transition-all duration-300 active:scale-95 no-hover-scale whitespace-nowrap"
             >
-              {t("shop_at_apeshop")}
+              <img
+                src="/wp-content/themes/night-club-theme/dist/images/Upper Bar.jpg.jpeg"
+                alt="Apeshop"
+                className="h-8 xl:h-10 w-auto object-contain"
+              />
             </a>
           </div>
 

@@ -459,11 +459,13 @@ export default function Home() {
           ))}
         </section>
 
+        <img src="/wp-content/themes/night-club-theme/dist/images/Poster.jpg.jpeg" alt="Poster" className="w-full mt-16 mb-8" />
+
         <section className="w-full px-6 lg:px-8 py-[50px]">
           <div className="text-center mb-12">
             <div className="relative inline-block pt-6 pb-8">
               <div className="absolute top-0 left-[-20%] right-[-20%] h-0.5 bg-white"></div>
-              <h2 className="font-['Epilogue'] text-4xl lg:text-5xl font-extrabold text-[#FF00FF] uppercase tracking-tighter px-12">
+              <h2 className="font-['Epilogue'] text-3xl sm:text-4xl lg:text-5xl font-extrabold text-[#FF00FF] uppercase tracking-tighter px-6 sm:px-12">
                 {t("our_services")}
               </h2>
               <div className="absolute bottom-0 left-[-20%] right-[-20%] flex items-center justify-center">
@@ -556,7 +558,7 @@ export default function Home() {
             {/* Title with Lines and Star */}
             <div className="relative inline-block mb-16 pt-6 pb-8">
               <div className="absolute top-0 left-[-20%] right-[-20%] h-0.5 bg-white"></div>
-              <h2 className="font-['Epilogue'] text-4xl lg:text-6xl font-extrabold uppercase tracking-tight px-12">
+              <h2 className="font-['Epilogue'] text-3xl sm:text-4xl lg:text-6xl font-extrabold uppercase tracking-tight px-6 sm:px-12">
                 {t("work_with_us_title")}
               </h2>
               <div className="absolute bottom-0 left-[-20%] right-[-20%] flex items-center justify-center">

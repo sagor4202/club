@@ -5,6 +5,7 @@
 body {
   background-color: #0f0f3d;
   color: #e2e2e2;
+  overflow-x: hidden;
 }
 
 .glass-card {
