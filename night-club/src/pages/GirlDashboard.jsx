@@ -10,11 +10,24 @@ const DEFAULT_RATES = [
   { time: "1 Hours", price: "170 EURO" },
 ];
 
+const BRAUNAU_RATES = [
+  { time: "20 MIN", price: "70 EURO" },
+  { time: "30 MIN", price: "100 EURO" },
+  { time: "1 Hours", price: "150 EURO" },
+];
+
+const NIGHTCLUB_RATES = [
+  { time: "30 min", price: "150 EURO" },
+  { time: "1 hour", price: "250 EURO" },
+];
+
 export default function GirlDashboard() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("overview");
   const [footerPad, setFooterPad] = useState(0);
   const fileInputRef = useRef(null);
+  const [girlLocation, setGirlLocation] = useState("");
+  const [newPriceByLocation, setNewPriceByLocation] = useState({ braunau: { time: "", rate: "" }, salzburg: { time: "", rate: "" }, nightclub: { time: "", rate: "" } });
 
   const [user, setUser] = useState(() => {
     try {
@@ -38,11 +51,21 @@ export default function GirlDashboard() {
   // Services state
   const [services, setServices] = useState([]);
   const [newService, setNewService] = useState("");
-  const [prices, setPrices] = useState([]);
-  const [newPriceTime, setNewPriceTime] = useState("");
-  const [newPriceRate, setNewPriceRate] = useState("");
+  const [pricesByLocation, setPricesByLocation] = useState({ braunau: [], salzburg: [], nightclub: [] });
   const [servicesSaving, setServicesSaving] = useState(false);
   const [servicesMsg, setServicesMsg] = useState(null);
+
+  const getLocationDefaults = (location) => {
+    if (location === "braunau") return BRAUNAU_RATES;
+    if (location === "salzburg") return DEFAULT_RATES;
+    return NIGHTCLUB_RATES;
+  };
+
+  const getAllDefaults = () => ({
+    braunau: BRAUNAU_RATES,
+    salzburg: DEFAULT_RATES,
+    nightclub: NIGHTCLUB_RATES,
+  });
 
   // Password state
   const [newPassword, setNewPassword] = useState("");
@@ -97,6 +120,7 @@ export default function GirlDashboard() {
           const girls = await res.json();
           const me = girls.find(g => g.email === user.email);
           if (me) {
+            setGirlLocation(me.location || "");
             // Normalize images to {id, url, type, isNew} format
             const normalizedImages = (me.images || []).map((item, idx) => {
               const url = typeof item === "string" ? item : item.url;
@@ -108,6 +132,21 @@ export default function GirlDashboard() {
                 isNew: false
               };
             });
+            // Determine prices: new object format, old array format, or defaults
+            let resolvedPrices;
+            if (me.prices && typeof me.prices === "object" && !Array.isArray(me.prices)) {
+              resolvedPrices = {
+                braunau: me.prices.braunau?.length ? me.prices.braunau : BRAUNAU_RATES,
+                salzburg: me.prices.salzburg?.length ? me.prices.salzburg : DEFAULT_RATES,
+                nightclub: me.prices.nightclub?.length ? me.prices.nightclub : NIGHTCLUB_RATES,
+              };
+            } else if (me.prices?.length) {
+              const loc = me.location || "nightclub";
+              const allDef = getAllDefaults();
+              resolvedPrices = { ...allDef, [loc]: me.prices };
+            } else {
+              resolvedPrices = getAllDefaults();
+            }
             setProfile({
               name: me.name || "",
               age: me.age || "",
@@ -121,10 +160,10 @@ export default function GirlDashboard() {
               desc: me.desc || "",
               images: normalizedImages,
               services: me.services || [],
-              prices: me.prices?.length ? me.prices : DEFAULT_RATES
+              prices: resolvedPrices
             });
             setServices(me.services || []);
-            setPrices(me.prices?.length ? me.prices : DEFAULT_RATES);
+            setPricesByLocation(resolvedPrices);
             
             // Find current thumbnail and set thumbnailId
             if (me.img && normalizedImages.length) {
@@ -380,7 +419,7 @@ export default function GirlDashboard() {
       const formData = new FormData();
       formData.append("email", user.email);
       formData.append("services", JSON.stringify(services));
-      formData.append("prices", JSON.stringify(prices));
+      formData.append("prices", JSON.stringify(pricesByLocation));
       const res = await fetch("/wp-json/pascha/v1/girls/me", { method: "POST", body: formData });
       const data = await res.json();
       if (res.ok) setServicesMsg({ type: "success", text: "Services & Rates saved!" });
@@ -780,28 +819,51 @@ export default function GirlDashboard() {
                       </div>
                     </div>
 
-                    {/* Rates */}
-                    <div className="pt-6 border-t border-white/10">
-                      <h3 className="text-white font-bold mb-4">Rates</h3>
-                      <div className="space-y-3 mb-4">
-                        {prices.map((p, idx) => (
-                          <div key={idx} className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-4 py-3">
-                            <span className="text-[#E3087E] font-bold text-sm flex-1">{p.time}</span>
-                            <span className="text-white font-bold">{p.price}</span>
-                            <button onClick={() => setPrices(pr => pr.filter((_, i) => i !== idx))} className="text-white/30 hover:text-red-400 transition-colors">
-                              <span className="material-symbols-outlined text-[16px]">delete</span>
-                            </button>
+                    {/* Rates by Location */}
+                    <div className="pt-6 border-t border-white/10 space-y-8">
+                      <h3 className="text-white font-bold mb-4">Rates by Location</h3>
+                      {["braunau", "salzburg", "nightclub"].map(loc => {
+                        const locLabel = loc === "braunau" ? "Braunau" : loc === "salzburg" ? "Salzburg" : "Nightclub";
+                        const locRates = pricesByLocation[loc] || [];
+                        const newInput = newPriceByLocation[loc] || { time: "", rate: "" };
+                        return (
+                          <div key={loc} className="bg-white/5 border border-white/10 rounded-2xl p-5">
+                            <h4 className="text-[#E3087E] font-bold text-sm uppercase tracking-widest mb-4">{locLabel} Rates</h4>
+                            <div className="space-y-2 mb-4">
+                              {locRates.length === 0 && (
+                                <p className="text-white/30 text-xs italic">No rates set. Defaults will be shown.</p>
+                              )}
+                              {locRates.map((p, idx) => (
+                                <div key={idx} className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-4 py-3">
+                                  <span className="text-white font-bold text-sm flex-1">{p.time}</span>
+                                  <span className="text-[#ff00ff] font-bold">{p.price}</span>
+                                  <button onClick={() => {
+                                    const updated = { ...pricesByLocation, [loc]: locRates.filter((_, i) => i !== idx) };
+                                    setPricesByLocation(updated);
+                                  }} className="text-white/30 hover:text-red-400 transition-colors">
+                                    <span className="material-symbols-outlined text-[16px]">delete</span>
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="flex gap-2">
+                              <input type="text" value={newInput.time} onChange={e => setNewPriceByLocation(prev => ({ ...prev, [loc]: { ...prev[loc], time: e.target.value } }))}
+                                placeholder="Duration" className={`${inputClass} flex-1 text-sm`} />
+                              <input type="text" value={newInput.rate} onChange={e => setNewPriceByLocation(prev => ({ ...prev, [loc]: { ...prev[loc], rate: e.target.value } }))}
+                                placeholder="Rate" className={`${inputClass} flex-1 text-sm`} />
+                              <button onClick={() => {
+                                if (newInput.time.trim() && newInput.rate.trim()) {
+                                  setPricesByLocation(prev => ({ ...prev, [loc]: [...(prev[loc] || []), { time: newInput.time.trim(), price: newInput.rate.trim() }] }));
+                                  setNewPriceByLocation(prev => ({ ...prev, [loc]: { time: "", rate: "" } }));
+                                }
+                              }}
+                                className="px-4 py-3 bg-[#E3087E]/10 border border-[#E3087E]/30 text-[#E3087E] rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-[#E3087E] hover:text-white transition-all flex items-center gap-1">
+                                <span className="material-symbols-outlined text-[16px]">add</span>Add
+                              </button>
+                            </div>
                           </div>
-                        ))}
-                      </div>
-                      <div className="flex gap-3">
-                        <input type="text" value={newPriceTime} onChange={e => setNewPriceTime(e.target.value)} placeholder="Duration (e.g. 1 Hour)" className={`${inputClass} flex-1`} />
-                        <input type="text" value={newPriceRate} onChange={e => setNewPriceRate(e.target.value)} placeholder="Rate (e.g. €150)" className={`${inputClass} flex-1`} />
-                        <button onClick={() => { if (newPriceTime.trim() && newPriceRate.trim()) { setPrices(pr => [...pr, { time: newPriceTime.trim(), price: newPriceRate.trim() }]); setNewPriceTime(""); setNewPriceRate(""); }}}
-                          className="px-5 py-3 bg-[#E3087E]/10 border border-[#E3087E]/30 text-[#E3087E] rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-[#E3087E] hover:text-white transition-all flex items-center gap-1">
-                          <span className="material-symbols-outlined text-[16px]">add</span>Add
-                        </button>
-                      </div>
+                        );
+                      })}
                     </div>
 
                     {servicesMsg && (

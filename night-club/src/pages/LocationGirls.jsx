@@ -11,28 +11,33 @@ const CLUBS = {
     address: "Salzburger Str. 136 // 5280 Braunau am Inn",
     heroImg: "/wp-content/uploads/2026/05/hero-01.png",
     mapLink: "https://maps.app.goo.gl/gM9w6F5DfrXGDjsi9",
+    whatsapp: "+43 676 3303336",
   },
   salzburg: {
     name: "pascha Laufhaus - Salzburg",
     address: "Sterneckstraße 14 // 5020 Salzburg",
     heroImg: "/wp-content/themes/night-club-theme/dist/images/hero-02.jpeg",
     mapLink: "https://maps.app.goo.gl/Qb6ShHv4Z7o1EK6L6",
+    whatsapp: "+43 676 6826881",
   },
   nightclub: {
     name: "Pascha nightclub - Salzburg",
     address: "Sterneckstraße 14 // 5020 Salzburg",
     heroImg: "/wp-content/themes/night-club-theme/dist/images/hero-03.mp4",
     mapLink: "https://maps.app.goo.gl/Qb6ShHv4Z7o1EK6L6",
+    whatsapp: "+43 676 6826881",
   },
   all: {
     name: "All Our Ladies",
     address: "Available at All Pascha Locations",
     heroImg: "/wp-content/themes/night-club-theme/dist/images/5871210-uhd_2160_3840_24fps.mp4",
+    whatsapp: "+43 676 3303336 // +43 676 6826881",
   },
   laufhaus: {
     name: "Pascha Laufhaus",
     address: "Premium Room Reservations",
     heroImg: "/wp-content/themes/night-club-theme/dist/images/hero-02.jpeg",
+    whatsapp: "+43 676 3303336 // +43 676 6826881",
   },
 };
 
@@ -103,6 +108,20 @@ export default function LocationGirls() {
       return null;
     }
   });
+
+  const [showNightclubForm, setShowNightclubForm] = useState(false);
+  const [ncReqFrom, setNcReqFrom] = useState("");
+  const [ncReqTo, setNcReqTo] = useState("");
+  const [ncReqLoading, setNcReqLoading] = useState(false);
+  const [ncReqMsg, setNcReqMsg] = useState(null);
+
+  useEffect(() => {
+    if (club === "nightclub" && user?.user_type === "girl") {
+      setShowNightclubForm(true);
+    } else {
+      setShowNightclubForm(false);
+    }
+  }, [club, user]);
 
   // Require login for nightclub page
   useEffect(() => {
@@ -235,26 +254,28 @@ export default function LocationGirls() {
     if (club !== "nightclub" && club !== "all") return [];
     const now = new Date();
     return allGirls.filter(g => {
-      // Check assigned girls first — bypass datetime filter
-      if (g.show_on_nightclub) return true;
-      // Check datetime range
-      if (g.nightclub_from_datetime && g.nightclub_to_datetime) {
-        const fromDt = new Date(g.nightclub_from_datetime);
-        const toDt = new Date(g.nightclub_to_datetime);
-        // Handle midnight crossing (e.g., 20:00 → 02:00 next day)
-        if (toDt <= fromDt) toDt.setDate(toDt.getDate() + 1);
-        if (now < fromDt || now > toDt) return false;
-      }
       return allReservations.some(r => {
+        if (r.location !== "nightclub") return false;
         if (r.status && r.status !== "approved") return false;
-        if (String(r.show_on_nightclub ?? "0") !== "1") return false;
 
         const isSameGirl = (r.user_email && r.user_email === g.email) || r.girl_name === g.name;
         if (!isSameGirl) return false;
 
+        const start = new Date(r.start_date);
         const end = new Date(r.end_date);
+        start.setHours(0, 0, 0, 0);
         end.setHours(23, 59, 59, 999);
-        return today <= end;
+        if (!(today >= start && today <= end)) return false;
+
+        // Check time-of-day from girl's user meta
+        if (g.nightclub_from_datetime && g.nightclub_to_datetime) {
+          const fromDt = new Date(g.nightclub_from_datetime);
+          let toDt = new Date(g.nightclub_to_datetime);
+          if (toDt <= fromDt) toDt.setDate(toDt.getDate() + 1);
+          if (now < fromDt || now > toDt) return false;
+        }
+
+        return true;
       });
     });
   }, [allGirls, allReservations, club, today]);
@@ -686,18 +707,9 @@ export default function LocationGirls() {
                 {nightclubGridGirls.map((g) => (
                   <div
                     key={`nightclub-grid-${g.name}`}
-                    onClick={() => navigate(`/profile/${g.name}`)}
+                    onClick={() => navigate(`/profile/${g.name}`, { state: { from: club } })}
                     className="cursor-pointer glass-card rounded-2xl overflow-hidden transition-all duration-500 group relative hover:shadow-[0_0_40px_rgba(255,0,255,0.25)] border border-white/10"
                   >
-                    {/* Top Badge */}
-                    {g.top_badge && (
-                      <div className="absolute top-3 right-3 z-30 pointer-events-none">
-                        <div className="bg-[#ff00ff]/95 text-white text-[12px] font-black px-3.5 py-2 rounded-full border border-white/25 shadow-[0_0_22px_rgba(255,0,255,0.55)] uppercase tracking-[0.18em] drop-shadow-[0_1px_1px_rgba(0,0,0,0.45)]">
-                          {g.top_badge}
-                        </div>
-                      </div>
-                    )}
-
                     {/* Available Badge */}
                     <div className="absolute top-3 left-3 z-30 pointer-events-none">
                       <div className="bg-[#00e5ff]/95 text-[#061019] text-[12px] font-black px-3.5 py-2 rounded-full border border-white/25 shadow-[0_0_22px_rgba(0,229,255,0.55)] uppercase tracking-[0.18em] flex items-center gap-2 drop-shadow-[0_1px_1px_rgba(0,0,0,0.45)]">
@@ -820,7 +832,7 @@ export default function LocationGirls() {
                     {sectionGirls.map((g) => (
                     <div
                       key={`all-${section.id}-${g.name}`}
-                      onClick={() => navigate(`/profile/${g.name}`)}
+                      onClick={() => navigate(`/profile/${g.name}`, { state: { from: club } })}
                       className="cursor-pointer glass-card rounded-2xl overflow-hidden transition-all duration-500 group relative hover:shadow-[0_0_40px_rgba(255,0,255,0.25)] border border-white/10"
                     >
                       {/* Top Badge - only shown when admin assigns one */}
@@ -950,7 +962,7 @@ export default function LocationGirls() {
               {availableGirls.map((g, index) => (
                 <div
                   key={`available-${g.name}`}
-                  onClick={() => navigate(`/profile/${g.name}`)}
+                  onClick={() => navigate(`/profile/${g.name}`, { state: { from: club } })}
                   className="cursor-pointer glass-card rounded-2xl overflow-hidden transition-all duration-500 group relative hover:shadow-[0_0_40px_rgba(255,0,255,0.25)] border border-white/10"
                 >
                   {/* Top Badge - only shown when admin assigns one */}
@@ -1264,7 +1276,7 @@ export default function LocationGirls() {
                 {soonGirls.map((g, idx) => (
                   <div
                     key={`soon-${g.name}-${idx}`}
-                    onClick={() => navigate(`/profile/${g.name}`)}
+                    onClick={() => navigate(`/profile/${g.name}`, { state: { from: club } })}
                     className="cursor-pointer glass-card rounded-lg overflow-hidden group relative border border-white/15 hover:shadow-[0_0_30px_rgba(255,0,255,0.2)] transition-all"
                   >
                     <div className="relative h-[340px] transition-all duration-500">
@@ -1401,7 +1413,7 @@ export default function LocationGirls() {
                 WhatsApp
               </h3>
               <p className="font-['Be_Vietnam_Pro'] text-white/70">
-                +43 664 1234567
+                {clubInfo.whatsapp || "+43 676 3303336"}
                 <br />
                 Available 24/7
               </p>
@@ -1427,6 +1439,101 @@ export default function LocationGirls() {
       </main>
 
       <Footer />
+
+      {/* Nightclub Assignment Modal */}
+      {showNightclubForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4 animate-in fade-in duration-300">
+          <div className="relative bg-[#0c0f0f] border border-white/[0.08] rounded-3xl w-full max-w-lg shadow-[0_0_60px_rgba(227,8,126,0.2)] animate-in zoom-in-95 duration-300">
+            <div className="bg-gradient-to-b from-[#0c0f0f] via-[#0c0f0f] to-transparent px-5 sm:px-7 pt-5 sm:pt-7 pb-4 border-b border-white/[0.06] flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#E3087E]/15 to-[#E3087E]/10 flex items-center justify-center text-[#E3087E]">
+                  <span className="material-symbols-outlined text-lg">nightlife</span>
+                </div>
+                <div>
+                  <h3 className="font-['Epilogue'] text-white font-black text-sm uppercase tracking-widest text-left">Nightclub Assignment</h3>
+                  <p className="text-white/25 text-[9px] uppercase tracking-widest font-bold mt-0.5 text-left">Request nightclub booking</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowNightclubForm(false)}
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-center text-white/30 hover:text-white hover:border-white/20 hover:bg-white/[0.08] transition-all duration-200"
+              >
+                <span className="material-symbols-outlined text-sm">close</span>
+              </button>
+            </div>
+            <div className="p-5 sm:p-7">
+              <div className="bg-gradient-to-br from-[#E3087E]/10 to-[#ff00ff]/5 border border-[#E3087E]/30 rounded-2xl p-5 sm:p-6 text-left">
+                <h4 className="text-white font-bold text-xs uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[#E3087E] text-sm">schedule</span>Select Your Availability
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="text-white/50 text-[10px] uppercase tracking-widest font-bold block mb-1.5 text-left">Available From</label>
+                    <input 
+                      type="datetime-local" 
+                      value={ncReqFrom}
+                      onChange={(e) => setNcReqFrom(e.target.value)}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-[#E3087E]/50 transition-colors" 
+                    />
+                  </div>
+                  <div>
+                    <label className="text-white/50 text-[10px] uppercase tracking-widest font-bold block mb-1.5 text-left">Available To</label>
+                    <input 
+                      type="datetime-local" 
+                      value={ncReqTo}
+                      onChange={(e) => setNcReqTo(e.target.value)}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-[#E3087E]/50 transition-colors" 
+                    />
+                  </div>
+                </div>
+                <button 
+                  onClick={async () => {
+                    if (!ncReqFrom || !ncReqTo) return;
+                    setNcReqLoading(true);
+                    setNcReqMsg(null);
+                    try {
+                      const res = await fetch("/wp-json/pascha/v1/nightclub/request", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ email: user.email, nightclub_from_datetime: ncReqFrom, nightclub_to_datetime: ncReqTo })
+                      });
+                      const data = await res.json();
+                      if (res.ok && data.success) {
+                        setNcReqMsg({ success: true, message: data.message });
+                        setNcReqFrom(""); 
+                        setNcReqTo("");
+                        setTimeout(() => {
+                          setShowNightclubForm(false);
+                          window.location.reload();
+                        }, 1500);
+                      } else {
+                        setNcReqMsg({ success: false, message: data.message || "Request failed." });
+                      }
+                    } catch (err) {
+                      setNcReqMsg({ success: false, message: "Network error." });
+                    } finally { 
+                      setNcReqLoading(false); 
+                    }
+                  }}
+                  disabled={ncReqLoading || !ncReqFrom || !ncReqTo}
+                  className="w-full py-3 bg-[#E3087E] text-white font-bold uppercase tracking-widest rounded-xl text-[11px] hover:brightness-110 transition-all shadow-[0_8px_25px_rgba(227,8,126,0.3)] flex items-center justify-center gap-2 disabled:opacity-40"
+                >
+                  {ncReqLoading ? (
+                    <><span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" /> Submitting...</>
+                  ) : (
+                    <><span className="material-symbols-outlined text-sm">send</span> Submit Request</>
+                  )}
+                </button>
+                {ncReqMsg && (
+                  <p className={`mt-3 text-[11px] text-center font-bold uppercase tracking-widest ${ncReqMsg.success ? 'text-[#00ff88]' : 'text-red-400'}`}>
+                    {ncReqMsg.message}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

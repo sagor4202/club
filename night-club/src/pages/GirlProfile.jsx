@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useMemo } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { FaWhatsapp, FaArrowLeft, FaStar, FaChevronLeft, FaChevronRight } from "react-icons/fa";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
@@ -8,6 +8,17 @@ const DEFAULT_RATES = [
   { time: "20 MIN", price: "80 EURO" },
   { time: "30 MIN", price: "120 EURO" },
   { time: "1 Hours", price: "170 EURO" },
+];
+
+const BRAUNAU_RATES = [
+  { time: "20 MIN", price: "70 EURO" },
+  { time: "30 MIN", price: "100 EURO" },
+  { time: "1 Hours", price: "150 EURO" },
+];
+
+const NIGHTCLUB_RATES = [
+  { time: "30 min", price: "150 EURO" },
+  { time: "1 hour", price: "250 EURO" },
 ];
 
 const isVideoUrl = (url) => {
@@ -19,6 +30,8 @@ const isVideoUrl = (url) => {
 export default function GirlProfile() {
   const { name } = useParams();
   const navigate = useNavigate();
+  const locationState = useLocation();
+  const fromClub = locationState.state?.from;
 
   const [activeImage, setActiveImage] = useState(0);
   const thumbsRef = useRef(null);
@@ -111,7 +124,7 @@ export default function GirlProfile() {
              : "Pascha",
     about: dynamicGirl?.desc || "I am an elegant, sophisticated companion who loves to create unforgettable memories. I offer the perfect mix of beauty, intelligence, and passion.",
     services: (dynamicGirl?.services && dynamicGirl.services.length > 0) ? dynamicGirl.services : [],
-    prices: (dynamicGirl?.prices && dynamicGirl.prices.length > 0) ? dynamicGirl.prices : [],
+    prices: dynamicGirl?.prices || [],
     whatsapp: dynamicGirl?.whatsapp || "",
     show_on_nightclub: dynamicGirl?.show_on_nightclub || false,
     isNightclubActive: (() => {
@@ -130,6 +143,25 @@ export default function GirlProfile() {
 
   const activeMedia = girl.images[activeImage] || girl.images[0] || { url: "", type: "image" };
   const isActiveVideo = activeMedia.type === "video" || isVideoUrl(activeMedia.url);
+
+  // Resolve which rates to display
+  const displayRates = (() => {
+    const p = dynamicGirl?.prices;
+    // New format: object with location keys
+    if (p && typeof p === "object" && !Array.isArray(p)) {
+      const targetLoc = fromClub || dynamicGirl?.location || "nightclub";
+      if (p[targetLoc]?.length > 0) return p[targetLoc];
+      if (p["nightclub"]?.length > 0) return p["nightclub"];
+    }
+    // Old format: array
+    if (Array.isArray(p) && p.length > 0) return p;
+    // Fallback to location-based defaults
+    if (fromClub === "nightclub") return NIGHTCLUB_RATES;
+    if (fromClub === "braunau") return BRAUNAU_RATES;
+    if (fromClub === "salzburg") return DEFAULT_RATES;
+    if (dynamicGirl?.location === "braunau") return BRAUNAU_RATES;
+    return DEFAULT_RATES;
+  })();
 
   return (
     <div className="min-h-screen selection:bg-[#ffabf3] selection:text-[#5b005b] bg-[#0F0F3D]">
@@ -259,7 +291,7 @@ export default function GirlProfile() {
               <div className="mb-10">
                 <h2 className="font-['Epilogue'] text-xl font-bold text-white mb-4 uppercase tracking-widest text-[#e9c349]">Rates</h2>
                 <div className="grid grid-cols-2 gap-4">
-                  {(girl.prices.length > 0 ? girl.prices : DEFAULT_RATES).map((price, idx) => (
+                  {displayRates.map((price, idx) => (
                     <div key={idx} className="flex justify-between items-center p-4 rounded-xl border border-white/10 bg-white/5">
                       <span className="text-white/70 text-sm font-['Be_Vietnam_Pro'] uppercase tracking-wider">{price.time}</span>
                       <span className="font-['Epilogue'] font-bold text-[#ff00ff] text-xl">{price.price.replace(/u20ac/gi, "€")}</span>
@@ -272,7 +304,7 @@ export default function GirlProfile() {
               </div>
             )}
 
-            {girl.isNightclubActive && (
+            {fromClub === "nightclub" && girl.isNightclubActive && (
               <div className="mb-10">
                 <h2 className="font-['Epilogue'] text-xl font-bold text-white mb-4 uppercase tracking-widest text-[#e9c349]">Nightclub Rates</h2>
                 <div className="space-y-3">

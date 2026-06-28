@@ -459,7 +459,9 @@ export default function Home() {
           ))}
         </section>
 
-        <img src="/wp-content/themes/night-club-theme/dist/images/Poster.jpg.jpeg" alt="Poster" className="w-full mt-16 mb-8" />
+        <a href="https://apeshop.at/" target="_blank" rel="noopener noreferrer" className="block w-full mt-16 mb-8">
+          <img src="/wp-content/themes/night-club-theme/dist/images/Poster.jpg.jpeg" alt="Poster" className="w-full" />
+        </a>
 
         <section className="w-full px-6 lg:px-8 py-[50px]">
           <div className="text-center mb-12">
@@ -626,7 +628,7 @@ export default function Home() {
             <div className="h-[1px] w-28 bg-[#E3087E] mx-auto opacity-60" />
 
             <div className="text-[10px] sm:text-xs lg:text-sm font-['Be_Vietnam_Pro'] font-medium tracking-wider opacity-90">
-              WhatsApp: +43 676 655 30 03 // WhatsApp: +43 676 492 88 18 // Phone: +43 662 875 138 (from 9:00 PM)
+              WhatsApp: +43 676 3303336 // WhatsApp: +43 676 6826881
             </div>
 
             <div className="text-base sm:text-lg lg:text-2xl font-extrabold font-['Epilogue'] tracking-tight leading-tight uppercase">
