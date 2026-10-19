@@ -25,12 +25,17 @@ function night_club_theme_enqueue_assets() {
                 true
             );
 
+            $media_data = function_exists( 'pbm_get_media_settings' ) ? pbm_get_media_settings() : null;
+            $banners_data = function_exists( 'pbm_get_banners' ) ? pbm_get_banners() : null;
+
             wp_add_inline_script(
                 'night-club-app',
                 'window.paschaCurrentUser = ' . wp_json_encode( array(
                     'logged_in' => is_user_logged_in(),
                     'is_admin'  => current_user_can( 'manage_options' ),
-                ) ) . ';',
+                ) ) . ';' .
+                'window.paschaMedia = ' . wp_json_encode( $media_data ) . ';' .
+                'window.paschaBanners = ' . wp_json_encode( $banners_data ) . ';',
                 'before'
             );
 
@@ -49,13 +54,21 @@ function night_club_theme_enqueue_assets() {
     } else {
         // Fallback for dev if needed, or just a warning
         if (is_user_logged_in()) {
-            add_action('wp_footer', function() {
+            add_action('wp_footer', function() use ($manifest_path) {
                 echo "<!-- Vite manifest not found at: " . esc_html($manifest_path) . " -->";
             });
         }
     }
 }
 add_action('wp_enqueue_scripts', 'night_club_theme_enqueue_assets');
+
+// Add type="module" only to the external script tag while keeping inline script synchronous
+add_filter('script_loader_tag', function($tag, $handle, $src) {
+    if ('night-club-app' === $handle && !empty($src)) {
+        $tag = preg_replace('/<script\b(?![^>]*\btype=)([^>]*\bsrc=[^>]*)>/i', '<script type="module"$1>', $tag);
+    }
+    return $tag;
+}, 10, 3);
 
 // Ensure React Router works by redirecting all non-file requests to index.php
 function night_club_theme_rewrite_rules() {

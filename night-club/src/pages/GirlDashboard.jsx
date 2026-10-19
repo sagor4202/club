@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import ReservationCalendar from "../components/ReservationCalendar";
@@ -17,13 +17,20 @@ const BRAUNAU_RATES = [
 ];
 
 const NIGHTCLUB_RATES = [
-  { time: "30 min", price: "150 EURO" },
-  { time: "1 hour", price: "250 EURO" },
+  { time: "30 MIN", price: "150 EURO" },
+  { time: "1 HOUR", price: "300 EURO" },
 ];
 
 export default function GirlDashboard() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("overview");
+  const location = useLocation();
+  const [activeTab, setActiveTab] = useState(() => {
+    return location.state?.activeTab || sessionStorage.getItem("girlDashboardTab") || "overview";
+  });
+
+  useEffect(() => {
+    sessionStorage.setItem("girlDashboardTab", activeTab);
+  }, [activeTab]);
   const [footerPad, setFooterPad] = useState(0);
   const fileInputRef = useRef(null);
   const [girlLocation, setGirlLocation] = useState("");
@@ -41,7 +48,10 @@ export default function GirlDashboard() {
     name: "", age: "", height: "", weight: "",
     measurements: "", languages: "", desc: "", whatsapp: "",
     nightclub_from_datetime: "", nightclub_to_datetime: "",
-    images: [], services: [], prices: []
+    images: [], services: [], prices: [],
+    firstName: "", lastName: "", dob: "", nationality: "",
+    placeOfBirth: "", address: "", documentType: "Passport",
+    passportNumber: "", issuingDate: "", issuingAuthority: "", phone: ""
   });
   const [thumbnailId, setThumbnailId] = useState(null);
   const [profileSaving, setProfileSaving] = useState(false);
@@ -75,6 +85,11 @@ export default function GirlDashboard() {
   const [passLoading, setPassLoading] = useState(false);
   const [passMsg, setPassMsg] = useState(null);
 
+  // Email state
+  const [newEmail, setNewEmail] = useState("");
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailMsg, setEmailMsg] = useState(null);
+
   // Reservations
   const [reservations, setReservations] = useState([]);
   const [ncReqFrom, setNcReqFrom] = useState("");
@@ -94,11 +109,14 @@ export default function GirlDashboard() {
   const [showChoiceModal, setShowChoiceModal] = useState(false);
   const [showNcModal, setShowNcModal] = useState(false);
 
-  const PRICES = {
-    "EU Ladies/Non Asian Ladies": { braunau: 700, salzburg: 850 },
-    "Chinese/Asian Ladies":       { braunau: 750, salzburg: 1000 },
-    "Trans Ladies":               { braunau: 750, salzburg: 1000 },
-  };
+  const [categoryPrices, setCategoryPrices] = useState(null);
+
+  useEffect(() => {
+    fetch('/wp-json/pascha/v1/weekly-costs')
+      .then(r => r.json())
+      .then(data => setCategoryPrices(data))
+      .catch(e => console.error(e));
+  }, []);
 
   const CATEGORIES = ["EU Ladies/Non Asian Ladies", "Chinese/Asian Ladies", "Trans Ladies"];
   const LOCATIONS = [
@@ -147,8 +165,16 @@ export default function GirlDashboard() {
             } else {
               resolvedPrices = getAllDefaults();
             }
+            let regData = {};
+            try {
+              const stored = localStorage.getItem("registration_profile_data");
+              if (stored) {
+                regData = JSON.parse(stored);
+              }
+            } catch (e) { }
+
             setProfile({
-              name: me.name || "",
+              name: me.name || regData.serviceName || "",
               age: me.age || "",
               height: me.height || "",
               weight: me.weight || "",
@@ -160,11 +186,22 @@ export default function GirlDashboard() {
               desc: me.desc || "",
               images: normalizedImages,
               services: me.services || [],
-              prices: resolvedPrices
+              prices: resolvedPrices,
+              firstName: me.first_name || me.firstName || regData.firstName || "",
+              lastName: me.last_name || me.lastName || regData.lastName || "",
+              dob: me.dob || regData.dob || "",
+              nationality: me.nationality || regData.nationality || "",
+              placeOfBirth: me.place_of_birth || me.placeOfBirth || regData.placeOfBirth || "",
+              address: me.address || regData.address || "",
+              documentType: me.document_type || me.documentType || regData.documentType || "Passport",
+              passportNumber: me.passport_number || me.passportNumber || regData.passportNumber || "",
+              issuingDate: me.issuing_date || me.issuingDate || "",
+              issuingAuthority: me.issuing_authority || me.issuingAuthority || "",
+              phone: me.phone || regData.phone || regData.publicNumber || ""
             });
             setServices(me.services || []);
             setPricesByLocation(resolvedPrices);
-            
+
             // Find current thumbnail and set thumbnailId
             if (me.img && normalizedImages.length) {
               const thumbItem = normalizedImages.find(m => m.url === me.img);
@@ -236,7 +273,14 @@ export default function GirlDashboard() {
 
   const bookedDates = (() => {
     const booked = [];
-    myReservations.forEach(res => {
+    reservations.forEach(res => {
+      if (selectedLocation && res.location !== selectedLocation) return;
+      
+      const isMine = (res.user_email && res.user_email === user?.email) || res.girl_name === user?.name;
+      const isTransBlocking = selectedCategory === "Trans Ladies" && res.girl_category === "Trans Ladies";
+      
+      if (!isMine && !isTransBlocking) return;
+      
       const start = new Date(res.start_date);
       const end = new Date(res.end_date);
       const d = new Date(start);
@@ -348,6 +392,17 @@ export default function GirlDashboard() {
       formData.append("nightclub_from_datetime", profile.nightclub_from_datetime);
       formData.append("nightclub_to_datetime", profile.nightclub_to_datetime);
       formData.append("desc", profile.desc);
+      formData.append("firstName", profile.firstName);
+      formData.append("lastName", profile.lastName);
+      formData.append("dob", profile.dob);
+      formData.append("nationality", profile.nationality);
+      formData.append("placeOfBirth", profile.placeOfBirth);
+      formData.append("address", profile.address);
+      formData.append("documentType", profile.documentType);
+      formData.append("passportNumber", profile.passportNumber);
+      formData.append("issuingDate", profile.issuingDate);
+      formData.append("issuingAuthority", profile.issuingAuthority);
+      formData.append("phone", profile.phone);
 
       const newItems = profile.images.filter(item => item.isNew);
       const order = profile.images.map(item => {
@@ -371,7 +426,7 @@ export default function GirlDashboard() {
       const text = await res.text();
       let data = {};
       try { data = JSON.parse(text); } catch (e) { console.error("Non-JSON response:", text); }
-      
+
       if (res.ok) {
         setProfileMsg({ type: "success", text: "Profile saved successfully!" });
         if (data.images) {
@@ -386,7 +441,7 @@ export default function GirlDashboard() {
             };
           });
           setProfile(prev => ({ ...prev, images: normalized }));
-          
+
           if (data.images.length > 0) {
             const thumbUrl = data.images[finalThumbIdx >= 0 ? finalThumbIdx : 0]?.url || data.images[0]?.url || data.images[0];
             const matchingItem = normalized.find(img => img.url === (typeof thumbUrl === "string" ? thumbUrl : thumbUrl.url));
@@ -459,6 +514,33 @@ export default function GirlDashboard() {
     } finally { setPassLoading(false); }
   };
 
+  // Change email
+  const handleChangeEmail = async (e) => {
+    e.preventDefault();
+    setEmailMsg(null);
+    if (!newEmail || !newEmail.includes("@")) {
+      setEmailMsg({ type: "error", text: "Please enter a valid email." }); return;
+    }
+    setEmailLoading(true);
+    try {
+      const res = await fetch("/wp-json/pascha/v1/girls/email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ current_email: user.email, new_email: newEmail })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setEmailMsg({ type: "success", text: "Email updated! Please log in again." });
+        setNewEmail("");
+        setTimeout(() => { handleSignOut(); }, 2500);
+      } else {
+        setEmailMsg({ type: "error", text: data.message || "Update failed." });
+      }
+    } catch (err) {
+      setEmailMsg({ type: "error", text: "Network error." });
+    } finally { setEmailLoading(false); }
+  };
+
   const inputClass = "w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 text-white placeholder:text-white/20 focus:outline-none focus:border-[#E3087E] focus:ring-1 focus:ring-[#E3087E] transition-all duration-300";
   const labelClass = "block text-white/60 text-[10px] font-bold uppercase tracking-widest mb-2 px-1";
 
@@ -475,9 +557,9 @@ export default function GirlDashboard() {
     const active = reservations.find(r => {
       const isMine = (r.user_email && r.user_email === user?.email) || r.girl_name === user?.name;
       if (!isMine) return false;
-      const today = new Date(); today.setHours(0,0,0,0);
-      const start = new Date(r.start_date); start.setHours(0,0,0,0);
-      const end = new Date(r.end_date); end.setHours(23,59,59,999);
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const start = new Date(r.start_date); start.setHours(0, 0, 0, 0);
+      const end = new Date(r.end_date); end.setHours(23, 59, 59, 999);
       return today >= start && today <= end;
     });
     if (active) return active.location === "braunau" ? "Pascha Braunau am Inn" : active.location === "salzburg" ? "Pasha Salzburg" : active.location;
@@ -491,56 +573,63 @@ export default function GirlDashboard() {
   const avatarIsVideo = selectedThumbItem?.type === "video" || isVideoUrl(avatarImg);
 
   return (
-    <div className="min-h-screen bg-[#0c0f0f] selection:bg-[#E3087E] selection:text-white" style={{ paddingBottom: footerPad }}>
+    <div className="min-h-screen bg-[#0c0f0f] selection:bg-[#E3087E] selection:text-white" style={ { paddingBottom: footerPad } }>
       <Navbar />
 
       <div className="pt-32 pb-24 px-6 max-w-7xl mx-auto">
-        {/* Header */}
+        {/* Header */ }
         <div className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div className="flex flex-col sm:flex-row items-center gap-6 text-center sm:text-left">
             <div className="w-20 h-20 rounded-full border-2 border-[#E3087E] overflow-hidden p-1 shadow-[0_0_20px_rgba(227,8,126,0.3)]">
-              {avatarIsVideo
-                ? <video src={avatarImg} className="w-full h-full object-cover rounded-full" muted playsInline />
-                : <img src={avatarImg} alt="Avatar" className="w-full h-full object-cover rounded-full" />}
+              { avatarIsVideo
+                ? <video src={ avatarImg } className="w-full h-full object-cover rounded-full" muted playsInline />
+                : <img src={ avatarImg } alt="Avatar" className="w-full h-full object-cover rounded-full" /> }
             </div>
             <div>
               <div className="flex flex-col sm:flex-row items-center gap-3 mb-1">
-                <h1 className="font-['Serif',serif] text-4xl font-bold text-white">{user.name}</h1>
+                <h1 className="font-['Serif',serif] text-4xl font-bold text-white">{ user.name }</h1>
                 <span className="bg-[#00ff88]/10 text-[#00ff88] border border-[#00ff88]/30 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 mt-2 sm:mt-0">
                   <span className="w-1.5 h-1.5 bg-[#00ff88] rounded-full animate-pulse" />
                   Verified Active
                 </span>
               </div>
-              <p className="text-white/40 text-sm font-['Be_Vietnam_Pro'] mt-1 sm:mt-0">Current Location: {profileLocation()}</p>
+              <p className="text-white/40 text-sm font-['Be_Vietnam_Pro'] mt-1 sm:mt-0">Current Location: { profileLocation() }</p>
             </div>
           </div>
-          <Link to={`/profile/${user.name}`}
-            className="flex items-center gap-2 px-6 py-3 bg-white/5 border border-white/10 rounded-xl text-white/60 text-xs font-bold uppercase tracking-widest hover:text-[#E3087E] hover:border-[#E3087E]/30 transition-all">
-            <span className="material-symbols-outlined text-sm">open_in_new</span>
-            View Public Profile
-          </Link>
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            <Link to={ `/profile/${user.name}` }
+              className="flex items-center gap-2 px-6 py-3 bg-white/5 border border-white/10 rounded-xl text-white/60 text-xs font-bold uppercase tracking-widest hover:text-[#E3087E] hover:border-[#E3087E]/30 transition-all">
+              <span className="material-symbols-outlined text-sm">open_in_new</span>
+              View Public Profile
+            </Link>
+            <button onClick={ handleSignOut }
+              className="flex items-center gap-2 px-6 py-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-xs font-bold uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all">
+              <span className="material-symbols-outlined text-sm">logout</span>
+              Sign Out
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Sidebar */}
+          {/* Sidebar */ }
           <div className="lg:col-span-3 flex flex-row lg:flex-col gap-2 overflow-x-auto pb-2 lg:pb-0 no-scrollbar">
-            {TABS.map(tab => (
-              <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                className={`flex-none lg:w-full flex items-center gap-2 lg:gap-4 px-4 lg:px-6 py-3 lg:py-4 rounded-xl lg:rounded-2xl font-bold uppercase tracking-widest text-[10px] lg:text-xs transition-all duration-300
-                  ${activeTab === tab.id ? 'bg-[#E3087E] text-white shadow-[0_10px_30px_rgba(227,8,126,0.3)]' : 'bg-white/5 text-white/40 hover:bg-white/10 hover:text-white'}`}>
-                <span className="material-symbols-outlined text-sm lg:text-base">{tab.icon}</span>
-                <span className="whitespace-nowrap">{tab.label}</span>
+            { TABS.map(tab => (
+              <button key={ tab.id } onClick={ () => setActiveTab(tab.id) }
+                className={ `flex-none lg:w-full flex items-center gap-2 lg:gap-4 px-4 lg:px-6 py-3 lg:py-4 rounded-xl lg:rounded-2xl font-bold uppercase tracking-widest text-[10px] lg:text-xs transition-all duration-300
+                  ${activeTab === tab.id ? 'bg-[#E3087E] text-white shadow-[0_10px_30px_rgba(227,8,126,0.3)]' : 'bg-white/5 text-white/40 hover:bg-white/10 hover:text-white'}` }>
+                <span className="material-symbols-outlined text-sm lg:text-base">{ tab.icon }</span>
+                <span className="whitespace-nowrap">{ tab.label }</span>
               </button>
-            ))}
+            )) }
           </div>
 
-          {/* Main Content */}
+          {/* Main Content */ }
           <div className="lg:col-span-9">
             <div className="glass-card p-6 md:p-10 rounded-[40px] border border-white/10 min-h-[500px] relative overflow-hidden">
               <div className="absolute top-0 right-0 w-64 h-64 bg-[#E3087E]/5 blur-[100px] rounded-full -mr-32 -mt-32 pointer-events-none" />
 
-              {/* Overview Tab */}
-              {activeTab === "overview" && (
+              {/* Overview Tab */ }
+              { activeTab === "overview" && (
                 <div className="relative z-10 animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-8">
                   <h2 className="font-['Serif',serif] text-2xl font-bold text-white mb-8 border-b border-white/10 pb-4">Dashboard Overview</h2>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -548,52 +637,52 @@ export default function GirlDashboard() {
                       <div className="absolute top-0 right-0 w-24 h-24 bg-[#E3087E]/10 blur-[40px] rounded-full -mr-12 -mt-12" />
                       <span className="material-symbols-outlined text-[#E3087E] text-3xl mb-3">book_online</span>
                       <p className="text-white/40 text-xs font-bold uppercase tracking-widest">Total Reservations</p>
-                      <h3 className="text-3xl font-bold text-white mt-1">{myReservations.length}</h3>
+                      <h3 className="text-3xl font-bold text-white mt-1">{ myReservations.length }</h3>
                     </div>
                     <div className="bg-white/5 border border-white/10 rounded-3xl p-6 relative overflow-hidden">
                       <div className="absolute top-0 right-0 w-24 h-24 bg-[#00ff88]/10 blur-[40px] rounded-full -mr-12 -mt-12" />
                       <span className="material-symbols-outlined text-[#00ff88] text-3xl mb-3">photo_library</span>
                       <p className="text-white/40 text-xs font-bold uppercase tracking-widest">Gallery Images</p>
-                      <h3 className="text-3xl font-bold text-white mt-1">{profile.images.length}</h3>
+                      <h3 className="text-3xl font-bold text-white mt-1">{ profile.images.length }</h3>
                     </div>
                     <div className="bg-white/5 border border-white/10 rounded-3xl p-6 relative overflow-hidden">
                       <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/10 blur-[40px] rounded-full -mr-12 -mt-12" />
                       <span className="material-symbols-outlined text-blue-400 text-3xl mb-3">sell</span>
                       <p className="text-white/40 text-xs font-bold uppercase tracking-widest">Services Listed</p>
-                      <h3 className="text-3xl font-bold text-white mt-1">{services.length}</h3>
+                      <h3 className="text-3xl font-bold text-white mt-1">{ services.length }</h3>
                     </div>
                   </div>
                   <div className="bg-white/5 border border-white/10 rounded-3xl p-6">
                     <h3 className="text-white font-bold uppercase tracking-widest text-xs mb-4">Quick Actions</h3>
                     <div className="flex flex-wrap gap-3">
-                      {[{tab:"profile", icon:"person", label:"Edit Profile"},{tab:"services", icon:"sell", label:"Update Services"},{tab:"calendar", icon:"calendar_month", label:"View Calendar"},{tab:"settings", icon:"settings", label:"Settings"}].map(a => (
-                        <button key={a.tab} onClick={() => setActiveTab(a.tab)}
+                      { [{ tab: "profile", icon: "person", label: "Edit Profile" }, { tab: "services", icon: "sell", label: "Update Services" }, { tab: "calendar", icon: "calendar_month", label: "View Calendar" }, { tab: "settings", icon: "settings", label: "Settings" }].map(a => (
+                        <button key={ a.tab } onClick={ () => setActiveTab(a.tab) }
                           className="flex items-center gap-2 px-5 py-3 bg-white/5 border border-white/10 rounded-xl text-white/60 text-xs font-bold uppercase tracking-widest hover:text-[#E3087E] hover:border-[#E3087E]/30 transition-all">
-                          <span className="material-symbols-outlined text-sm">{a.icon}</span>{a.label}
+                          <span className="material-symbols-outlined text-sm">{ a.icon }</span>{ a.label }
                         </button>
-                      ))}
+                      )) }
                     </div>
                   </div>
                 </div>
-              )}
+              ) }
 
-              {/* Calendar Tab */}
-              {activeTab === "calendar" && (
+              {/* Calendar Tab */ }
+              { activeTab === "calendar" && (
                 <div className="relative z-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
                     <div>
                       <h2 className="font-['Serif',serif] text-xl sm:text-2xl font-bold text-white">My Calendar</h2>
                       <p className="text-white/40 text-xs sm:text-sm mt-0.5">Manage your reservation requests</p>
                     </div>
-                    <button onClick={() => setShowChoiceModal(true)}
+                    <button onClick={ () => setShowChoiceModal(true) }
                       className="w-full sm:w-auto px-5 py-3 bg-[#E50D7E] text-white font-bold uppercase tracking-widest rounded-xl text-[11px] hover:brightness-110 transition-all shadow-[0_10px_25px_rgba(229,13,126,0.3)] flex items-center justify-center gap-2">
                       <span className="material-symbols-outlined text-sm">add</span>
                       New Reservation
                     </button>
                   </div>
 
-                  {/* Existing Requests List */}
-                  {reservations.filter(r => r.girl_name === user?.name || r.user_email === user?.email).length === 0 ? (
+                  {/* Existing Requests List */ }
+                  { reservations.filter(r => r.girl_name === user?.name || r.user_email === user?.email).length === 0 ? (
                     <div className="text-center py-16 sm:py-20 bg-white/[0.02] border border-white/[0.06] rounded-2xl">
                       <span className="material-symbols-outlined text-4xl sm:text-5xl text-white/10 block mb-4">calendar_month</span>
                       <p className="text-white/30 text-xs sm:text-sm font-bold uppercase tracking-widest">No requests yet</p>
@@ -601,291 +690,373 @@ export default function GirlDashboard() {
                     </div>
                   ) : (
                     <div className="space-y-2.5">
-                      {reservations.filter(r => r.girl_name === user?.name || r.user_email === user?.email).map(r => (
-                        <div key={r.id} className="bg-white/[0.02] border border-white/[0.06] rounded-xl px-4 sm:px-5 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+                      { reservations.filter(r => r.girl_name === user?.name || r.user_email === user?.email).map(r => (
+                        <div key={ r.id } className="bg-white/[0.02] border border-white/[0.06] rounded-xl px-4 sm:px-5 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
                           <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 ${r.status === 'approved' ? 'bg-[#00ff88]/10 text-[#00ff88]' : r.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500' : 'bg-red-500/10 text-red-400'}`}>
-                              <span className="material-symbols-outlined text-base sm:text-lg">{r.status === 'approved' ? 'check' : r.status === 'pending' ? 'schedule' : 'close'}</span>
+                            <div className={ `w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 ${r.status === 'approved' ? 'bg-[#00ff88]/10 text-[#00ff88]' : r.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500' : 'bg-red-500/10 text-red-400'}` }>
+                              <span className="material-symbols-outlined text-base sm:text-lg">{ r.status === 'approved' ? 'check' : r.status === 'pending' ? 'schedule' : 'close' }</span>
                             </div>
                             <div className="min-w-0">
-                              <p className="text-white font-bold text-xs sm:text-sm truncate">{r.location} {r.room_number ? `• Room ${r.room_number}` : ''}</p>
-                              <p className="text-white/30 text-[9px] sm:text-[10px] uppercase tracking-widest mt-0.5 truncate">{r.start_date} → {r.end_date} {r.cost ? `• €${r.cost}` : ''}</p>
+                              <p className="text-white font-bold text-xs sm:text-sm truncate">{ r.location } { r.room_number ? `• Room ${r.room_number}` : '' }</p>
+                              <p className="text-white/30 text-[9px] sm:text-[10px] uppercase tracking-widest mt-0.5 truncate">{ r.start_date } → { r.end_date } { r.cost ? `• €${r.cost}` : '' }</p>
                             </div>
                           </div>
-                          <span className={`self-start sm:self-auto text-[9px] sm:text-[10px] font-bold uppercase tracking-widest px-2.5 sm:px-3 py-1 rounded-lg ${r.status === 'approved' ? 'bg-[#00ff88]/10 text-[#00ff88]' : r.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500' : 'bg-red-500/10 text-red-400'}`}>{r.status}</span>
+                          <span className={ `self-start sm:self-auto text-[9px] sm:text-[10px] font-bold uppercase tracking-widest px-2.5 sm:px-3 py-1 rounded-lg ${r.status === 'approved' ? 'bg-[#00ff88]/10 text-[#00ff88]' : r.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500' : 'bg-red-500/10 text-red-400'}` }>{ r.status }</span>
                         </div>
-                      ))}
+                      )) }
                     </div>
-                  )}
+                  ) }
 
                 </div>
-              )}
-              {/* Inbox Tab */}
-              {activeTab === "inbox" && (
+              ) }
+              {/* Inbox Tab */ }
+              { activeTab === "inbox" && (
                 <div className="relative z-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
                   <h2 className="font-['Serif',serif] text-2xl font-bold text-white mb-8 border-b border-white/10 pb-4">Appointments / Inbox</h2>
-                  {inboxMessages.length === 0 ? (
+                  { inboxMessages.length === 0 ? (
                     <div className="text-center py-16 text-white/30">
                       <span className="material-symbols-outlined text-5xl mb-4 block">mail</span>
                       <p className="text-sm font-bold uppercase tracking-widest">No messages yet</p>
                     </div>
                   ) : inboxMessages.map((msg) => (
-                    <div key={msg.id} className="bg-white/5 border border-white/10 rounded-2xl p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 hover:border-[#E3087E]/50 transition-colors mb-4 relative overflow-hidden">
-                      {!msg.is_read && <div className="absolute top-0 left-0 w-1 h-full bg-[#E3087E]"></div>}
+                    <div key={ msg.id } className="bg-white/5 border border-white/10 rounded-2xl p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 hover:border-[#E3087E]/50 transition-colors mb-4 relative overflow-hidden">
+                      { !msg.is_read && <div className="absolute top-0 left-0 w-1 h-full bg-[#E3087E]"></div> }
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
-                          <h3 className="text-white font-bold text-lg">{msg.name}</h3>
-                          {!msg.is_read && <span className="bg-[#E3087E]/20 text-[#E3087E] text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-widest">New</span>}
+                          <h3 className="text-white font-bold text-lg">{ msg.name }</h3>
+                          { !msg.is_read && <span className="bg-[#E3087E]/20 text-[#E3087E] text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-widest">New</span> }
                         </div>
-                        <p className="text-white/60 text-sm mb-1"><span className="font-bold text-white/40">Email:</span> {msg.email} | <span className="font-bold text-white/40">Phone:</span> {msg.phone}</p>
-                        <p className="text-white/60 text-sm mb-3"><span className="font-bold text-white/40">Preferred Date:</span> {msg.date}</p>
+                        <p className="text-white/60 text-sm mb-1"><span className="font-bold text-white/40">Email:</span> { msg.email } | <span className="font-bold text-white/40">Phone:</span> { msg.phone }</p>
+                        <p className="text-white/60 text-sm mb-3"><span className="font-bold text-white/40">Preferred Date:</span> { msg.date }</p>
                         <div className="bg-black/20 p-4 rounded-xl text-white/80 text-sm italic">
-                          "{msg.message}"
+                          "{ msg.message }"
                         </div>
-                        <p className="text-white/30 text-[10px] uppercase tracking-widest mt-4">Received: {new Date(msg.created_at).toLocaleString()}</p>
+                        <p className="text-white/30 text-[10px] uppercase tracking-widest mt-4">Received: { new Date(msg.created_at).toLocaleString() }</p>
                       </div>
-                      {!msg.is_read && (
+                      { !msg.is_read && (
                         <div className="text-right">
-                          <button onClick={() => handleMarkAsRead(msg.id)} className="px-4 py-2 bg-white/5 border border-white/10 hover:bg-[#E3087E] hover:border-[#E3087E] text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-all">
+                          <button onClick={ () => handleMarkAsRead(msg.id) } className="px-4 py-2 bg-white/5 border border-white/10 hover:bg-[#E3087E] hover:border-[#E3087E] text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-all">
                             Mark as Read
                           </button>
                         </div>
-                      )}
+                      ) }
                     </div>
-                  ))}
+                  )) }
                 </div>
-              )}
+              ) }
 
 
 
-              {/* Profile & Gallery Tab */}
-              {activeTab === "profile" && (
+              {/* Profile & Gallery Tab */ }
+              { activeTab === "profile" && (
                 <div className="relative z-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
                   <h2 className="font-['Serif',serif] text-2xl font-bold text-white mb-8 border-b border-white/10 pb-4">Profile & Gallery</h2>
                   <div className="space-y-8">
-                    {/* Info Fields */}
+                    {/* Public Info Fields */ }
+                    <h3 className="text-white font-bold mb-4 border-b border-white/10 pb-2">Public Profile</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-2">
-                        <label className={labelClass}>Stage Name</label>
-                        <input type="text" value={profile.name} onChange={e => setProfile(p => ({...p, name: e.target.value}))} className={inputClass} placeholder="Your stage name" />
+                        <label className={ labelClass }>Stage Name</label>
+                        <input type="text" value={ profile.name } onChange={ e => setProfile(p => ({ ...p, name: e.target.value })) } className={ inputClass } placeholder="Your stage name" />
                       </div>
                       <div className="space-y-2">
-                        <label className={labelClass}>Age</label>
-                        <input type="number" value={profile.age} onChange={e => setProfile(p => ({...p, age: e.target.value}))} className={inputClass} placeholder="e.g. 23" />
+                        <label className={ labelClass }>Age</label>
+                        <input type="number" value={ profile.age } onChange={ e => setProfile(p => ({ ...p, age: e.target.value })) } className={ inputClass } placeholder="e.g. 23" />
                       </div>
                       <div className="space-y-2">
-                        <label className={labelClass}>Height</label>
-                        <input type="text" value={profile.height} onChange={e => setProfile(p => ({...p, height: e.target.value}))} className={inputClass} placeholder="e.g. 168cm" />
+                        <label className={ labelClass }>Height</label>
+                        <input type="text" value={ profile.height } onChange={ e => setProfile(p => ({ ...p, height: e.target.value })) } className={ inputClass } placeholder="e.g. 168cm" />
                       </div>
                       <div className="space-y-2">
-                        <label className={labelClass}>Weight</label>
-                        <input type="text" value={profile.weight} onChange={e => setProfile(p => ({...p, weight: e.target.value}))} className={inputClass} placeholder="e.g. 55kg" />
+                        <label className={ labelClass }>Weight</label>
+                        <input type="text" value={ profile.weight } onChange={ e => setProfile(p => ({ ...p, weight: e.target.value })) } className={ inputClass } placeholder="e.g. 55kg" />
                       </div>
                       <div className="space-y-2">
-                        <label className={labelClass}>Measurements</label>
-                        <input type="text" value={profile.measurements} onChange={e => setProfile(p => ({...p, measurements: e.target.value}))} className={inputClass} placeholder="e.g. 88-60-90" />
+                        <label className={ labelClass }>Measurements</label>
+                        <input type="text" value={ profile.measurements } onChange={ e => setProfile(p => ({ ...p, measurements: e.target.value })) } className={ inputClass } placeholder="e.g. 88-60-90" />
                       </div>
                       <div className="space-y-2">
-                        <label className={labelClass}>Languages</label>
-                        <input type="text" value={profile.languages} onChange={e => setProfile(p => ({...p, languages: e.target.value}))} className={inputClass} placeholder="e.g. English, German" />
+                        <label className={ labelClass }>Languages</label>
+                        <input type="text" value={ profile.languages } onChange={ e => setProfile(p => ({ ...p, languages: e.target.value })) } className={ inputClass } placeholder="e.g. English, German" />
                       </div>
                       <div className="space-y-2">
-                        <label className={labelClass}>WhatsApp Number</label>
-                        <input type="text" value={profile.whatsapp} onChange={e => setProfile(p => ({...p, whatsapp: e.target.value}))} className={inputClass} placeholder="e.g. 43123456789" />
+                        <label className={ labelClass }>WhatsApp Number</label>
+                        <input type="text" value={ profile.whatsapp } onChange={ e => setProfile(p => ({ ...p, whatsapp: e.target.value })) } className={ inputClass } placeholder="e.g. 43123456789" />
                       </div>
                       <div className="space-y-2 md:col-span-2">
-                        <label className={labelClass}>About Me / Bio</label>
-                        <textarea rows="4" value={profile.desc} onChange={e => setProfile(p => ({...p, desc: e.target.value}))} className={inputClass} placeholder="Write something about yourself..." />
+                        <label className={ labelClass }>About Me / Bio</label>
+                        <textarea rows="4" value={ profile.desc } onChange={ e => setProfile(p => ({ ...p, desc: e.target.value })) } className={ inputClass } placeholder="Write something about yourself..." />
                       </div>
                     </div>
 
-                    {/* Gallery */}
+                    {/* Private Identity Fields */ }
+                    <h3 className="text-white font-bold mt-8 mb-4 border-b border-white/10 pb-2">Private Identity & Registration Info</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <label className={ labelClass }>Given Name</label>
+                        <input type="text" value={ profile.firstName } onChange={ e => setProfile(p => ({ ...p, firstName: e.target.value })) } className={ inputClass } />
+                      </div>
+                      <div className="space-y-2">
+                        <label className={ labelClass }>Family Name</label>
+                        <input type="text" value={ profile.lastName } onChange={ e => setProfile(p => ({ ...p, lastName: e.target.value })) } className={ inputClass } />
+                      </div>
+                      <div className="space-y-2">
+                        <label className={ labelClass }>Date of Birth</label>
+                        <input type="text" placeholder="DD/MM/YYYY" value={ profile.dob } onChange={ e => setProfile(p => ({ ...p, dob: e.target.value })) } className={ inputClass } />
+                      </div>
+                      <div className="space-y-2">
+                        <label className={ labelClass }>Nationality</label>
+                        <input type="text" value={ profile.nationality } onChange={ e => setProfile(p => ({ ...p, nationality: e.target.value })) } className={ inputClass } />
+                      </div>
+                      <div className="space-y-2">
+                        <label className={ labelClass }>Place of Birth</label>
+                        <input type="text" value={ profile.placeOfBirth } onChange={ e => setProfile(p => ({ ...p, placeOfBirth: e.target.value })) } className={ inputClass } />
+                      </div>
+                      <div className="space-y-2">
+                        <label className={ labelClass }>Phone Number</label>
+                        <input type="tel" value={ profile.phone } onChange={ e => setProfile(p => ({ ...p, phone: e.target.value })) } className={ inputClass } />
+                      </div>
+                      <div className="space-y-2 md:col-span-2">
+                        <label className={ labelClass }>Full Address</label>
+                        <input type="text" value={ profile.address } onChange={ e => setProfile(p => ({ ...p, address: e.target.value })) } className={ inputClass } />
+                      </div>
+                      <div className="space-y-2">
+                        <label className={ labelClass }>Document Type</label>
+                        <select value={ profile.documentType } onChange={ e => setProfile(p => ({ ...p, documentType: e.target.value })) } className={ inputClass }>
+                          <option value="Passport" className="bg-[#0c0f0f] text-white">Passport</option>
+                          <option value="ID Card" className="bg-[#0c0f0f] text-white">ID Card</option>
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <label className={ labelClass }>Document Number</label>
+                        <input type="text" value={ profile.passportNumber } onChange={ e => setProfile(p => ({ ...p, passportNumber: e.target.value })) } className={ inputClass } />
+                      </div>
+                      <div className="space-y-2">
+                        <label className={ labelClass }>Issuing Date</label>
+                        <input type="date" value={ profile.issuingDate } onChange={ e => setProfile(p => ({ ...p, issuingDate: e.target.value })) } className={ inputClass } />
+                      </div>
+                      <div className="space-y-2">
+                        <label className={ labelClass }>Issuing Authority</label>
+                        <input type="text" value={ profile.issuingAuthority } onChange={ e => setProfile(p => ({ ...p, issuingAuthority: e.target.value })) } className={ inputClass } />
+                      </div>
+                    </div>
+
+                    {/* Gallery */ }
                     <div className="pt-6 border-t border-white/10">
                       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-2">
                         <div>
                           <h3 className="text-white font-bold">Gallery Images</h3>
                           <p className="text-white/30 text-[10px] uppercase tracking-widest mt-1">Select the radio button below an image to set it as your thumbnail</p>
                         </div>
-                        <button onClick={() => fileInputRef.current?.click()}
+                        <button onClick={ () => fileInputRef.current?.click() }
                           className="text-[#E3087E] text-xs font-bold uppercase tracking-widest flex items-center gap-1 hover:text-white transition-colors bg-[#E3087E]/10 px-4 py-2 rounded-lg border border-[#E3087E]/30">
                           <span className="material-symbols-outlined text-[16px]">add_photo_alternate</span>
                           Upload Images / Videos
                         </button>
-                        <input ref={fileInputRef} type="file" accept="image/*,video/mp4,video/webm,video/ogg,video/quicktime" multiple className="hidden" onChange={handleFileSelect} />
+                        <input ref={ fileInputRef } type="file" accept="image/*,video/mp4,video/webm,video/ogg,video/quicktime" multiple className="hidden" onChange={ handleFileSelect } />
                       </div>
 
-                      {/* Unified Gallery Grid */}
-                      {profile.images.length > 0 && (
+                      {/* Unified Gallery Grid */ }
+                      { profile.images.length > 0 && (
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mt-4">
-                          {profile.images.map((media, idx) => {
+                          { profile.images.map((media, idx) => {
                             const isVideo = media.type === "video" || isVideoUrl(media.url);
                             const url = media.url;
                             const isSelectedThumbnail = thumbnailId === media.id;
                             return (
-                              <div key={media.id} className="group relative"
-                                data-drag-index={idx}
+                              <div key={ media.id } className="group relative"
+                                data-drag-index={ idx }
                                 draggable
-                                onDragStart={() => handleDragStart(idx)}
-                                onDragOver={handleDragOver}
-                                onDrop={(e) => handleDrop(e, idx)}
-                                onTouchStart={() => handleTouchStart(idx)}
-                                onTouchEnd={handleTouchEnd}
+                                onDragStart={ () => handleDragStart(idx) }
+                                onDragOver={ handleDragOver }
+                                onDrop={ (e) => handleDrop(e, idx) }
+                                onTouchStart={ () => handleTouchStart(idx) }
+                                onTouchEnd={ handleTouchEnd }
                               >
-                                <div className={`aspect-[3/4] rounded-xl overflow-hidden relative border-2 transition-all cursor-move ${isSelectedThumbnail ? "border-[#E3087E] shadow-[0_0_20px_rgba(227,8,126,0.4)]" : "border-white/10"} ${draggedIdx === idx ? "opacity-50" : "opacity-100"}`}>
-                                  {isVideo
-                                    ? <video src={url} className="w-full h-full object-cover pointer-events-none" muted playsInline />
-                                    : <img src={url} alt={`Gallery ${idx+1}`} className="w-full h-full object-cover pointer-events-none" />}
-                                  
-                                  {isVideo && (
+                                <div className={ `aspect-[3/4] rounded-xl overflow-hidden relative border-2 transition-all cursor-move ${isSelectedThumbnail ? "border-[#E3087E] shadow-[0_0_20px_rgba(227,8,126,0.4)]" : "border-white/10"} ${draggedIdx === idx ? "opacity-50" : "opacity-100"}` }>
+                                  { isVideo
+                                    ? <video src={ url } className="w-full h-full object-cover pointer-events-none" muted playsInline />
+                                    : <img src={ url } alt={ `Gallery ${idx + 1}` } className="w-full h-full object-cover pointer-events-none" /> }
+
+                                  { isVideo && (
                                     <div className="absolute bottom-2 right-2 bg-black/70 rounded-full px-2 py-0.5 flex items-center gap-1">
                                       <span className="material-symbols-outlined text-white text-[12px]">videocam</span>
                                       <span className="text-white text-[9px] font-bold uppercase">Video</span>
                                     </div>
-                                  )}
-                                  
-                                  {media.isNew && (
+                                  ) }
+
+                                  { media.isNew && (
                                     <div className="absolute top-2 left-2 bg-[#E3087E]/80 text-white text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full">New</div>
-                                  )}
-                                  
-                                  {isSelectedThumbnail && !media.isNew && (
+                                  ) }
+
+                                  { isSelectedThumbnail && !media.isNew && (
                                     <div className="absolute top-2 left-2 bg-[#E3087E] text-white text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full">Thumbnail</div>
-                                  )}
-                                  
-                                  <button onClick={() => removeGalleryItem(media.id)}
+                                  ) }
+
+                                  <button onClick={ () => removeGalleryItem(media.id) }
                                     className="absolute top-2 right-2 bg-black/70 hover:bg-red-500 text-white rounded-full w-7 h-7 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
                                     <span className="material-symbols-outlined text-[14px]">close</span>
                                   </button>
                                 </div>
                                 <label className="flex items-center gap-2 mt-2 cursor-pointer justify-center">
-                                  <input type="radio" name="thumbnail" checked={isSelectedThumbnail} onChange={() => setThumbnailId(media.id)}
+                                  <input type="radio" name="thumbnail" checked={ isSelectedThumbnail } onChange={ () => setThumbnailId(media.id) }
                                     className="accent-[#E3087E] w-4 h-4 cursor-pointer" />
                                   <span className="text-white/40 text-[10px] uppercase tracking-widest">Set Thumbnail</span>
                                 </label>
                               </div>
                             );
-                          })}
+                          }) }
                         </div>
-                      )}
+                      ) }
 
-                      {profile.images.length === 0 && (
-                        <div className="border-2 border-dashed border-white/10 rounded-2xl p-12 text-center mt-4 cursor-pointer hover:border-[#E3087E]/40 transition-colors" onClick={() => fileInputRef.current?.click()}>
+                      { profile.images.length === 0 && (
+                        <div className="border-2 border-dashed border-white/10 rounded-2xl p-12 text-center mt-4 cursor-pointer hover:border-[#E3087E]/40 transition-colors" onClick={ () => fileInputRef.current?.click() }>
                           <span className="material-symbols-outlined text-4xl text-white/20 mb-3 block">add_photo_alternate</span>
                           <p className="text-white/40 text-sm">Click to upload your first images</p>
                         </div>
-                      )}
+                      ) }
                     </div>
 
-                    {/* Save button & message */}
-                    {profileMsg && (
-                      <div className={`p-4 rounded-xl text-xs font-bold uppercase tracking-widest text-center ${profileMsg.type === 'success' ? 'bg-[#00ff88]/10 border border-[#00ff88]/20 text-[#00ff88]' : 'bg-red-500/10 border border-red-500/20 text-red-400'}`}>
-                        {profileMsg.text}
+                    {/* Save button & message */ }
+                    { profileMsg && (
+                      <div className={ `p-4 rounded-xl text-xs font-bold uppercase tracking-widest text-center ${profileMsg.type === 'success' ? 'bg-[#00ff88]/10 border border-[#00ff88]/20 text-[#00ff88]' : 'bg-red-500/10 border border-red-500/20 text-red-400'}` }>
+                        { profileMsg.text }
                       </div>
-                    )}
-                    <button onClick={handleSaveProfile} disabled={profileSaving}
+                    ) }
+                    <button onClick={ handleSaveProfile } disabled={ profileSaving }
                       className="w-full sm:w-auto px-8 py-4 bg-[#E3087E] text-white font-bold uppercase tracking-widest rounded-xl hover:bg-[#c0066a] transition-all shadow-[0_10px_30px_rgba(227,8,126,0.3)] text-xs disabled:opacity-50 flex items-center gap-2">
-                      <span className="material-symbols-outlined text-sm">{profileSaving ? 'hourglass_top' : 'save'}</span>
-                      {profileSaving ? "Saving..." : "Save Profile"}
+                      <span className="material-symbols-outlined text-sm">{ profileSaving ? 'hourglass_top' : 'save' }</span>
+                      { profileSaving ? "Saving..." : "Save Profile" }
                     </button>
                   </div>
                 </div>
-              )}
+              ) }
 
-              {/* Services Tab */}
-              {activeTab === "services" && (
+              {/* Services Tab */ }
+              { activeTab === "services" && (
                 <div className="relative z-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
                   <h2 className="font-['Serif',serif] text-2xl font-bold text-white mb-8 border-b border-white/10 pb-4">Services & Rates</h2>
                   <div className="space-y-8">
-                    {/* Services */}
+                    {/* Services */ }
                     <div>
                       <h3 className="text-white font-bold mb-4">Included Services</h3>
                       <div className="flex flex-wrap gap-2 mb-4">
-                        {services.map((s, idx) => (
-                          <span key={idx} className="px-4 py-2 rounded-full bg-white/5 border border-white/10 text-white/60 text-xs font-bold flex items-center gap-2">
-                            {s}
-                            <button onClick={() => setServices(sv => sv.filter((_, i) => i !== idx))} className="hover:text-red-400 transition-colors">
+                        { services.map((s, idx) => (
+                          <span key={ idx } className="px-4 py-2 rounded-full bg-white/5 border border-white/10 text-white/60 text-xs font-bold flex items-center gap-2">
+                            { s }
+                            <button onClick={ () => setServices(sv => sv.filter((_, i) => i !== idx)) } className="hover:text-red-400 transition-colors">
                               <span className="material-symbols-outlined text-[14px]">close</span>
                             </button>
                           </span>
-                        ))}
+                        )) }
                       </div>
                       <div className="flex gap-3">
-                        <input type="text" value={newService} onChange={e => setNewService(e.target.value)}
-                          onKeyDown={e => { if (e.key === 'Enter' && newService.trim()) { setServices(sv => [...sv, newService.trim()]); setNewService(""); }}}
-                          placeholder="Add a service (press Enter)" className={`${inputClass} flex-1`} />
-                        <button onClick={() => { if (newService.trim()) { setServices(sv => [...sv, newService.trim()]); setNewService(""); }}}
+                        <input type="text" value={ newService } onChange={ e => setNewService(e.target.value) }
+                          onKeyDown={ e => { if (e.key === 'Enter' && newService.trim()) { setServices(sv => [...sv, newService.trim()]); setNewService(""); } } }
+                          placeholder="Add a service (press Enter)" className={ `${inputClass} flex-1` } />
+                        <button onClick={ () => { if (newService.trim()) { setServices(sv => [...sv, newService.trim()]); setNewService(""); } } }
                           className="px-5 py-3 bg-[#E3087E]/10 border border-[#E3087E]/30 text-[#E3087E] rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-[#E3087E] hover:text-white transition-all flex items-center gap-1">
                           <span className="material-symbols-outlined text-[16px]">add</span>Add
                         </button>
                       </div>
                     </div>
 
-                    {/* Rates by Location */}
+                    {/* Rates by Location */ }
                     <div className="pt-6 border-t border-white/10 space-y-8">
                       <h3 className="text-white font-bold mb-4">Rates by Location</h3>
-                      {["braunau", "salzburg", "nightclub"].map(loc => {
+                      { ["braunau", "salzburg", "nightclub"].map(loc => {
                         const locLabel = loc === "braunau" ? "Braunau" : loc === "salzburg" ? "Salzburg" : "Nightclub";
                         const locRates = pricesByLocation[loc] || [];
                         const newInput = newPriceByLocation[loc] || { time: "", rate: "" };
                         return (
-                          <div key={loc} className="bg-white/5 border border-white/10 rounded-2xl p-5">
-                            <h4 className="text-[#E3087E] font-bold text-sm uppercase tracking-widest mb-4">{locLabel} Rates</h4>
+                          <div key={ loc } className="bg-white/5 border border-white/10 rounded-2xl p-5">
+                            <h4 className="text-[#E3087E] font-bold text-sm uppercase tracking-widest mb-4">{ locLabel } Rates</h4>
                             <div className="space-y-2 mb-4">
-                              {locRates.length === 0 && (
+                              { locRates.length === 0 && (
                                 <p className="text-white/30 text-xs italic">No rates set. Defaults will be shown.</p>
-                              )}
-                              {locRates.map((p, idx) => (
-                                <div key={idx} className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-4 py-3">
-                                  <span className="text-white font-bold text-sm flex-1">{p.time}</span>
-                                  <span className="text-[#ff00ff] font-bold">{p.price}</span>
-                                  <button onClick={() => {
+                              ) }
+                              { locRates.map((p, idx) => (
+                                <div key={ idx } className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-4 py-3">
+                                  <span className="text-white font-bold text-sm flex-1">{ p.time }</span>
+                                  <span className="text-[#ff00ff] font-bold">{ p.price }</span>
+                                  <button onClick={ () => {
                                     const updated = { ...pricesByLocation, [loc]: locRates.filter((_, i) => i !== idx) };
                                     setPricesByLocation(updated);
-                                  }} className="text-white/30 hover:text-red-400 transition-colors">
+                                  } } className="text-white/30 hover:text-red-400 transition-colors">
                                     <span className="material-symbols-outlined text-[16px]">delete</span>
                                   </button>
                                 </div>
-                              ))}
+                              )) }
                             </div>
                             <div className="flex gap-2">
-                              <input type="text" value={newInput.time} onChange={e => setNewPriceByLocation(prev => ({ ...prev, [loc]: { ...prev[loc], time: e.target.value } }))}
-                                placeholder="Duration" className={`${inputClass} flex-1 text-sm`} />
-                              <input type="text" value={newInput.rate} onChange={e => setNewPriceByLocation(prev => ({ ...prev, [loc]: { ...prev[loc], rate: e.target.value } }))}
-                                placeholder="Rate" className={`${inputClass} flex-1 text-sm`} />
-                              <button onClick={() => {
+                              <input type="text" value={ newInput.time } onChange={ e => setNewPriceByLocation(prev => ({ ...prev, [loc]: { ...prev[loc], time: e.target.value } })) }
+                                placeholder="Duration" className={ `${inputClass} flex-1 text-sm` } />
+                              <input type="text" value={ newInput.rate } onChange={ e => setNewPriceByLocation(prev => ({ ...prev, [loc]: { ...prev[loc], rate: e.target.value } })) }
+                                placeholder="Rate" className={ `${inputClass} flex-1 text-sm` } />
+                              <button onClick={ () => {
                                 if (newInput.time.trim() && newInput.rate.trim()) {
                                   setPricesByLocation(prev => ({ ...prev, [loc]: [...(prev[loc] || []), { time: newInput.time.trim(), price: newInput.rate.trim() }] }));
                                   setNewPriceByLocation(prev => ({ ...prev, [loc]: { time: "", rate: "" } }));
                                 }
-                              }}
+                              } }
                                 className="px-4 py-3 bg-[#E3087E]/10 border border-[#E3087E]/30 text-[#E3087E] rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-[#E3087E] hover:text-white transition-all flex items-center gap-1">
                                 <span className="material-symbols-outlined text-[16px]">add</span>Add
                               </button>
                             </div>
                           </div>
                         );
-                      })}
+                      }) }
                     </div>
 
-                    {servicesMsg && (
-                      <div className={`p-4 rounded-xl text-xs font-bold uppercase tracking-widest text-center ${servicesMsg.type === 'success' ? 'bg-[#00ff88]/10 border border-[#00ff88]/20 text-[#00ff88]' : 'bg-red-500/10 border border-red-500/20 text-red-400'}`}>
-                        {servicesMsg.text}
+                    { servicesMsg && (
+                      <div className={ `p-4 rounded-xl text-xs font-bold uppercase tracking-widest text-center ${servicesMsg.type === 'success' ? 'bg-[#00ff88]/10 border border-[#00ff88]/20 text-[#00ff88]' : 'bg-red-500/10 border border-red-500/20 text-red-400'}` }>
+                        { servicesMsg.text }
                       </div>
-                    )}
-                    <button onClick={handleSaveServices} disabled={servicesSaving}
+                    ) }
+                    <button onClick={ handleSaveServices } disabled={ servicesSaving }
                       className="w-full sm:w-auto px-8 py-4 bg-[#E3087E] text-white font-bold uppercase tracking-widest rounded-xl hover:bg-[#c0066a] transition-all shadow-[0_10px_30px_rgba(227,8,126,0.3)] text-xs disabled:opacity-50 flex items-center gap-2">
-                      <span className="material-symbols-outlined text-sm">{servicesSaving ? 'hourglass_top' : 'save'}</span>
-                      {servicesSaving ? "Saving..." : "Save Services & Rates"}
+                      <span className="material-symbols-outlined text-sm">{ servicesSaving ? 'hourglass_top' : 'save' }</span>
+                      { servicesSaving ? "Saving..." : "Save Services & Rates" }
                     </button>
                   </div>
                 </div>
-              )}
+              ) }
 
-              {/* Settings Tab */}
-              {activeTab === "settings" && (
+              { activeTab === "settings" && (
                 <div className="relative z-10 animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-8">
                   <h2 className="font-['Serif',serif] text-2xl font-bold text-white mb-8 border-b border-white/10 pb-4">Settings</h2>
 
-                  {/* Change Password */}
+                  {/* Change Email */ }
+                  <div className="bg-white/5 border border-white/10 rounded-3xl p-8">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400">
+                        <span className="material-symbols-outlined">mail</span>
+                      </div>
+                      <div>
+                        <h3 className="text-white font-bold">Change Email</h3>
+                        <p className="text-white/30 text-[10px] uppercase tracking-widest">You will be logged out after changing your email</p>
+                      </div>
+                    </div>
+                    <form onSubmit={ handleChangeEmail } className="space-y-5">
+                      <div className="space-y-2">
+                        <label className={ labelClass }>New Email</label>
+                        <input type="email" value={ newEmail } onChange={ e => setNewEmail(e.target.value) }
+                          placeholder="Enter new email" className={ inputClass } />
+                      </div>
+                      { emailMsg && (
+                        <div className={ `p-4 rounded-xl text-xs font-bold uppercase tracking-widest text-center ${emailMsg.type === 'success' ? 'bg-[#00ff88]/10 border border-[#00ff88]/20 text-[#00ff88]' : 'bg-red-500/10 border border-red-500/20 text-red-400'}` }>
+                          { emailMsg.text }
+                        </div>
+                      ) }
+                      <button type="submit" disabled={ emailLoading }
+                        className="w-full sm:w-auto px-8 py-4 bg-blue-600 text-white font-bold uppercase tracking-widest rounded-xl hover:bg-blue-700 transition-all shadow-[0_10px_30px_rgba(37,99,235,0.3)] text-xs disabled:opacity-50 flex items-center gap-2">
+                        <span className="material-symbols-outlined text-sm">{ emailLoading ? 'hourglass_top' : 'mail' }</span>
+                        { emailLoading ? "Updating..." : "Update Email" }
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* Change Password */ }
                   <div className="bg-white/5 border border-white/10 rounded-3xl p-8">
                     <div className="flex items-center gap-3 mb-6">
                       <div className="w-10 h-10 rounded-xl bg-[#E3087E]/10 flex items-center justify-center text-[#E3087E]">
@@ -896,41 +1067,41 @@ export default function GirlDashboard() {
                         <p className="text-white/30 text-[10px] uppercase tracking-widest">You will be logged out after changing your password</p>
                       </div>
                     </div>
-                    <form onSubmit={handleChangePassword} className="space-y-5">
+                    <form onSubmit={ handleChangePassword } className="space-y-5">
                       <div className="space-y-2">
-                        <label className={labelClass}>New Password</label>
+                        <label className={ labelClass }>New Password</label>
                         <div className="relative">
-                          <input type={showNewPass ? "text" : "password"} value={newPassword} onChange={e => setNewPassword(e.target.value)}
-                            placeholder="Enter new password" className={`${inputClass} pr-12`} />
-                          <button type="button" onClick={() => setShowNewPass(s => !s)} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 hover:text-white transition-colors">
-                            <span className="material-symbols-outlined text-[18px]">{showNewPass ? "visibility_off" : "visibility"}</span>
+                          <input type={ showNewPass ? "text" : "password" } value={ newPassword } onChange={ e => setNewPassword(e.target.value) }
+                            placeholder="Enter new password" className={ `${inputClass} pr-12` } />
+                          <button type="button" onClick={ () => setShowNewPass(s => !s) } className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 hover:text-white transition-colors">
+                            <span className="material-symbols-outlined text-[18px]">{ showNewPass ? "visibility_off" : "visibility" }</span>
                           </button>
                         </div>
                       </div>
                       <div className="space-y-2">
-                        <label className={labelClass}>Confirm New Password</label>
+                        <label className={ labelClass }>Confirm New Password</label>
                         <div className="relative">
-                          <input type={showConfirmPass ? "text" : "password"} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}
-                            placeholder="Repeat new password" className={`${inputClass} pr-12`} />
-                          <button type="button" onClick={() => setShowConfirmPass(s => !s)} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 hover:text-white transition-colors">
-                            <span className="material-symbols-outlined text-[18px]">{showConfirmPass ? "visibility_off" : "visibility"}</span>
+                          <input type={ showConfirmPass ? "text" : "password" } value={ confirmPassword } onChange={ e => setConfirmPassword(e.target.value) }
+                            placeholder="Repeat new password" className={ `${inputClass} pr-12` } />
+                          <button type="button" onClick={ () => setShowConfirmPass(s => !s) } className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 hover:text-white transition-colors">
+                            <span className="material-symbols-outlined text-[18px]">{ showConfirmPass ? "visibility_off" : "visibility" }</span>
                           </button>
                         </div>
                       </div>
-                      {passMsg && (
-                        <div className={`p-4 rounded-xl text-xs font-bold uppercase tracking-widest text-center ${passMsg.type === 'success' ? 'bg-[#00ff88]/10 border border-[#00ff88]/20 text-[#00ff88]' : 'bg-red-500/10 border border-red-500/20 text-red-400'}`}>
-                          {passMsg.text}
+                      { passMsg && (
+                        <div className={ `p-4 rounded-xl text-xs font-bold uppercase tracking-widest text-center ${passMsg.type === 'success' ? 'bg-[#00ff88]/10 border border-[#00ff88]/20 text-[#00ff88]' : 'bg-red-500/10 border border-red-500/20 text-red-400'}` }>
+                          { passMsg.text }
                         </div>
-                      )}
-                      <button type="submit" disabled={passLoading}
+                      ) }
+                      <button type="submit" disabled={ passLoading }
                         className="w-full sm:w-auto px-8 py-4 bg-[#E3087E] text-white font-bold uppercase tracking-widest rounded-xl hover:bg-[#c0066a] transition-all shadow-[0_10px_30px_rgba(227,8,126,0.3)] text-xs disabled:opacity-50 flex items-center gap-2">
-                        <span className="material-symbols-outlined text-sm">{passLoading ? 'hourglass_top' : 'lock_reset'}</span>
-                        {passLoading ? "Updating..." : "Update Password"}
+                        <span className="material-symbols-outlined text-sm">{ passLoading ? 'hourglass_top' : 'lock_reset' }</span>
+                        { passLoading ? "Updating..." : "Update Password" }
                       </button>
                     </form>
                   </div>
 
-                  {/* Sign Out */}
+                  {/* Sign Out */ }
                   <div className="bg-white/5 border border-white/10 rounded-3xl p-8">
                     <div className="flex items-center gap-3 mb-4">
                       <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center text-red-400">
@@ -941,25 +1112,25 @@ export default function GirlDashboard() {
                         <p className="text-white/30 text-[10px] uppercase tracking-widest">You will be redirected to the login page</p>
                       </div>
                     </div>
-                    <button onClick={handleSignOut}
+                    <button onClick={ handleSignOut }
                       className="px-8 py-4 bg-red-500/10 border border-red-500/20 hover:bg-red-500 text-red-400 hover:text-white font-bold uppercase tracking-widest rounded-xl transition-all text-xs flex items-center gap-2">
                       <span className="material-symbols-outlined text-sm">logout</span>
                       Sign Out
                     </button>
                   </div>
                 </div>
-              )}
+              ) }
 
             </div>
           </div>
         </div>
       </div>
 
-      {/* Choice Modal - Room vs Nightclub */}
-      {showChoiceModal && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" onClick={() => setShowChoiceModal(false)}>
+      {/* Choice Modal - Room vs Nightclub */ }
+      { showChoiceModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" onClick={ () => setShowChoiceModal(false) }>
           <div className="absolute inset-0 bg-black/80 backdrop-blur-md animate-in fade-in duration-300" />
-          <div className="relative bg-[#0c0f0f] border border-white/[0.08] rounded-3xl w-full max-w-sm shadow-[0_0_60px_rgba(227,8,126,0.2)] animate-in zoom-in-95 duration-300 p-6 sm:p-8" onClick={e => e.stopPropagation()}>
+          <div className="relative bg-[#0c0f0f] border border-white/[0.08] rounded-3xl w-full max-w-sm shadow-[0_0_60px_rgba(227,8,126,0.2)] animate-in zoom-in-95 duration-300 p-6 sm:p-8" onClick={ e => e.stopPropagation() }>
             <div className="text-center mb-6">
               <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#E3087E]/15 to-[#E3087E]/10 flex items-center justify-center mx-auto mb-3 text-[#E3087E] shadow-[0_0_20px_rgba(227,8,126,0.15)]">
                 <span className="material-symbols-outlined text-2xl">add_circle</span>
@@ -968,7 +1139,7 @@ export default function GirlDashboard() {
               <p className="text-white/25 text-[10px] uppercase tracking-widest mt-1.5 font-bold">Choose reservation type</p>
             </div>
             <div className="space-y-3">
-              <button onClick={() => { setShowChoiceModal(false); setStep(1); setShowModal(true); }}
+              <button onClick={ () => { setShowChoiceModal(false); setStep(1); setShowModal(true); } }
                 className="w-full px-5 py-4 rounded-xl font-bold text-sm transition-all duration-200 border text-left flex items-center justify-between bg-white/[0.02] border-white/[0.06] text-white/50 hover:bg-white/[0.06] hover:text-white hover:border-[#E3087E]/40 hover:shadow-[0_0_15px_rgba(227,8,126,0.10)] group">
                 <span className="flex items-center gap-3">
                   <span className="material-symbols-outlined text-[#E3087E] text-lg">meeting_room</span>
@@ -976,7 +1147,7 @@ export default function GirlDashboard() {
                 </span>
                 <span className="material-symbols-outlined text-sm text-white/15 group-hover:text-white/40">arrow_forward_ios</span>
               </button>
-              <button onClick={() => { setShowChoiceModal(false); setShowNcModal(true); }}
+              <button onClick={ () => { setShowChoiceModal(false); setShowNcModal(true); } }
                 className="w-full px-5 py-4 rounded-xl font-bold text-sm transition-all duration-200 border text-left flex items-center justify-between bg-white/[0.02] border-white/[0.06] text-white/50 hover:bg-white/[0.06] hover:text-white hover:border-[#E3087E]/40 hover:shadow-[0_0_15px_rgba(227,8,126,0.10)] group">
                 <span className="flex items-center gap-3">
                   <span className="material-symbols-outlined text-[#E3087E] text-lg">nightlife</span>
@@ -985,16 +1156,16 @@ export default function GirlDashboard() {
                 <span className="material-symbols-outlined text-sm text-white/15 group-hover:text-white/40">arrow_forward_ios</span>
               </button>
             </div>
-            <button onClick={() => setShowChoiceModal(false)} className="w-full mt-4 py-2.5 text-white/25 text-[10px] uppercase tracking-widest font-bold hover:text-white/50 transition-colors rounded-xl border border-dashed border-white/[0.06] hover:border-white/20">Cancel</button>
+            <button onClick={ () => setShowChoiceModal(false) } className="w-full mt-4 py-2.5 text-white/25 text-[10px] uppercase tracking-widest font-bold hover:text-white/50 transition-colors rounded-xl border border-dashed border-white/[0.06] hover:border-white/20">Cancel</button>
           </div>
         </div>
-      )}
+      ) }
 
-      {/* Nightclub Assignment Modal */}
-      {showNcModal && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" onClick={() => setShowNcModal(false)}>
+      {/* Nightclub Assignment Modal */ }
+      { showNcModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" onClick={ () => setShowNcModal(false) }>
           <div className="absolute inset-0 bg-black/80 backdrop-blur-md animate-in fade-in duration-300" />
-          <div className="relative bg-[#0c0f0f] border border-white/[0.08] rounded-3xl w-full max-w-lg shadow-[0_0_60px_rgba(227,8,126,0.2)] animate-in zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>
+          <div className="relative bg-[#0c0f0f] border border-white/[0.08] rounded-3xl w-full max-w-lg shadow-[0_0_60px_rgba(227,8,126,0.2)] animate-in zoom-in-95 duration-300" onClick={ e => e.stopPropagation() }>
             <div className="bg-gradient-to-b from-[#0c0f0f] via-[#0c0f0f] to-transparent px-5 sm:px-7 pt-5 sm:pt-7 pb-4 border-b border-white/[0.06] flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#E3087E]/15 to-[#E3087E]/10 flex items-center justify-center text-[#E3087E]">
@@ -1005,86 +1176,94 @@ export default function GirlDashboard() {
                   <p className="text-white/25 text-[9px] uppercase tracking-widest font-bold mt-0.5">Request nightclub booking</p>
                 </div>
               </div>
-              <button onClick={() => setShowNcModal(false)} className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-center text-white/30 hover:text-white hover:border-white/20 hover:bg-white/[0.08] transition-all duration-200">
+              <button onClick={ () => setShowNcModal(false) } className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-center text-white/30 hover:text-white hover:border-white/20 hover:bg-white/[0.08] transition-all duration-200">
                 <span className="material-symbols-outlined text-sm">close</span>
               </button>
             </div>
             <div className="p-5 sm:p-7">
               <div className="bg-gradient-to-br from-[#E3087E]/10 to-[#ff00ff]/5 border border-[#E3087E]/30 rounded-2xl p-5 sm:p-6">
-                <h4 className="text-white font-bold text-xs uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[#E3087E] text-sm">schedule</span>
-                  Select Your Availability
+                <h4 className="text-white font-bold text-xs uppercase tracking-widest mb-4 flex items-center gap-2 justify-center">
+                  <span className="material-symbols-outlined text-[#E3087E] text-sm">nightlife</span>
+                  Submit Nightclub Request
                 </h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <label className="text-white/50 text-[10px] uppercase tracking-widest font-bold block mb-1.5">Available From</label>
-                    <input type="datetime-local" value={ncReqFrom} onChange={e => setNcReqFrom(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-[#E3087E]/50 transition-colors" />
-                  </div>
-                  <div>
-                    <label className="text-white/50 text-[10px] uppercase tracking-widest font-bold block mb-1.5">Available To</label>
-                    <input type="datetime-local" value={ncReqTo} onChange={e => setNcReqTo(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-[#E3087E]/50 transition-colors" />
-                  </div>
-                </div>
-                <button onClick={async () => {
-                  if (!ncReqFrom || !ncReqTo) return;
+                <p className="text-white/50 text-[11px] text-center mb-5 uppercase tracking-widest leading-relaxed">
+                  By submitting, you request to work in the nightclub tonight (07:00 PM — 07:00 AM).
+                </p>
+                <button onClick={ async () => {
+                  const now = new Date();
+                  const y = now.getFullYear();
+                  const m = String(now.getMonth() + 1).padStart(2, '0');
+                  const d = String(now.getDate()).padStart(2, '0');
+                  
+                  const tmrw = new Date(now);
+                  tmrw.setDate(tmrw.getDate() + 1);
+                  const y2 = tmrw.getFullYear();
+                  const m2 = String(tmrw.getMonth() + 1).padStart(2, '0');
+                  const d2 = String(tmrw.getDate()).padStart(2, '0');
+
+                  const reqFrom = `${y}-${m}-${d}T19:00:00`;
+                  const reqTo = `${y2}-${m2}-${d2}T07:00:00`;
+
                   setNcReqLoading(true);
                   setNcReqMsg(null);
                   try {
                     const res = await fetch("/wp-json/pascha/v1/nightclub/request", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ email: user.email, nightclub_from_datetime: ncReqFrom, nightclub_to_datetime: ncReqTo })
+                      body: JSON.stringify({ email: user.email, nightclub_from_datetime: reqFrom, nightclub_to_datetime: reqTo })
                     });
                     const data = await res.json();
                     if (res.ok && data.success) {
                       setNcReqMsg({ success: true, message: data.message });
-                      setNcReqFrom(""); setNcReqTo("");
                       const r = await fetch(`/wp-json/pascha/v1/reservations?t=${Date.now()}`);
                       if (r.ok) setReservations(await r.json());
+                      setTimeout(() => {
+                        window.location.href = "/girls/nightclub?submitted=1";
+                      }, 1500);
                     } else {
                       setNcReqMsg({ success: false, message: data.message || "Request failed." });
                     }
                   } catch (err) {
                     setNcReqMsg({ success: false, message: "Network error." });
                   } finally { setNcReqLoading(false); }
-                }} disabled={ncReqLoading || !ncReqFrom || !ncReqTo} className="w-full py-3 bg-[#E3087E] text-white font-bold uppercase tracking-widest rounded-xl text-[11px] hover:brightness-110 transition-all shadow-[0_8px_25px_rgba(227,8,126,0.3)] flex items-center justify-center gap-2 disabled:opacity-40">
-                  {ncReqLoading ? <><span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" /> Submitting...</> : <><span className="material-symbols-outlined text-sm">send</span> Submit Request</>}
+                } } disabled={ ncReqLoading } className="w-full py-3 bg-[#E3087E] text-white font-bold uppercase tracking-widest rounded-xl text-[11px] hover:brightness-110 transition-all shadow-[0_8px_25px_rgba(227,8,126,0.3)] flex items-center justify-center gap-2 disabled:opacity-40">
+                  { ncReqLoading ? <><span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" /> Submitting...</> : <><span className="material-symbols-outlined text-sm">send</span> Submit Request</> }
                 </button>
-                {ncReqMsg && (
-                  <p className={`mt-3 text-[11px] text-center font-bold uppercase tracking-widest ${ncReqMsg.success ? 'text-[#00ff88]' : 'text-red-400'}`}>{ncReqMsg.message}</p>
-                )}
+                { ncReqMsg && (
+                  <p className={ `mt-3 text-[11px] text-center font-bold uppercase tracking-widest ${ncReqMsg.success ? 'text-[#00ff88]' : 'text-red-400'}` }>{ ncReqMsg.message }</p>
+                ) }
               </div>
             </div>
           </div>
         </div>
-      )}
+      ) }
 
-      {/* Modal Overlay - Root Level */}
-      {showModal && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" onClick={() => setShowModal(false)}>
+      {/* Modal Overlay - Root Level */ }
+      { showModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" onClick={ () => setShowModal(false) }>
           <div className="absolute inset-0 bg-black/80 backdrop-blur-md animate-in fade-in duration-300" />
-          <div className="relative bg-[#0c0f0f] border border-white/[0.08] rounded-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-[0_0_60px_rgba(227,8,126,0.2)] mx-2 sm:mx-0 animate-in zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>
+          <div className="relative bg-[#0c0f0f] border border-white/[0.08] rounded-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-[0_0_60px_rgba(227,8,126,0.2)] mx-2 sm:mx-0 animate-in zoom-in-95 duration-300" onClick={ e => e.stopPropagation() }>
 
             <div className="sticky top-0 bg-gradient-to-b from-[#0c0f0f] via-[#0c0f0f] to-transparent z-10 px-5 sm:px-7 pt-5 sm:pt-7 pb-3 sm:pb-4 flex items-center justify-between border-b border-white/[0.06]">
               <div className="flex items-center gap-2 sm:gap-3">
-                {[1,2,3,4].map(s => (
-                  <div key={s} className={`
+                { [1, 2, 3, 4].map(s => (
+                  <div key={ s } className={ `
                     w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[9px] sm:text-[10px] font-extrabold tracking-widest transition-all duration-300
                     ${step === s ? 'bg-[#E3087E] text-white shadow-[0_0_15px_rgba(227,8,126,0.4)]' :
                       step > s ? 'bg-[#00ff88]/15 text-[#00ff88] border border-[#00ff88]/30' :
-                      'bg-white/[0.04] text-white/25 border border-white/[0.06]'}
+                        'bg-white/[0.04] text-white/25 border border-white/[0.06]'}
                   `}>
-                    {step > s ? <span className="material-symbols-outlined text-[11px] sm:text-xs">check</span> : s}
+                    { step > s ? <span className="material-symbols-outlined text-[11px] sm:text-xs">check</span> : s }
                   </div>
-                ))}
+                )) }
               </div>
-              <button onClick={() => setShowModal(false)} className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-center text-white/30 hover:text-white hover:border-white/20 hover:bg-white/[0.08] transition-all duration-200">
+              <button onClick={ () => setShowModal(false) } className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-center text-white/30 hover:text-white hover:border-white/20 hover:bg-white/[0.08] transition-all duration-200">
                 <span className="material-symbols-outlined text-sm">close</span>
               </button>
             </div>
 
             <div className="p-5 sm:p-7">
-              {step === 1 && (
+              { step === 1 && (
                 <div className="space-y-5">
                   <div className="text-center">
                     <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#E3087E]/15 to-[#E3087E]/10 flex items-center justify-center mx-auto mb-3 text-[#E3087E] shadow-[0_0_20px_rgba(227,8,126,0.15)]">
@@ -1094,18 +1273,20 @@ export default function GirlDashboard() {
                     <p className="text-white/25 text-[10px] uppercase tracking-widest mt-1 font-bold">Step 1 of 4</p>
                   </div>
                   <div className="space-y-2.5 pt-1">
-                    {CATEGORIES.map(cat => (
-                      <button key={cat} onClick={() => { setSelectedCategory(cat); setStep(2); }}
+                    { CATEGORIES.map(cat => (
+                      <button key={ cat } onClick={ () => { setSelectedCategory(cat); setStep(2); } }
                         className="w-full px-5 py-4 rounded-xl font-bold text-sm transition-all duration-200 border text-left flex items-center justify-between bg-white/[0.02] border-white/[0.06] text-white/50 hover:bg-white/[0.06] hover:text-white hover:border-[#E3087E]/40 hover:shadow-[0_0_15px_rgba(227,8,126,0.10)] group">
-                        {cat}
+                        { cat }
                         <span className="material-symbols-outlined text-sm text-white/15 group-hover:text-white/40 transition-colors">arrow_forward_ios</span>
                       </button>
-                    ))}
+                    )) }
                   </div>
                 </div>
-              )}
+              ) }
 
-              {step === 2 && (
+
+
+              { step === 2 && (
                 <div className="space-y-5">
                   <div className="text-center">
                     <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#E3087E]/15 to-[#E3087E]/10 flex items-center justify-center mx-auto mb-3 text-[#E3087E] shadow-[0_0_20px_rgba(227,8,126,0.15)]">
@@ -1115,19 +1296,19 @@ export default function GirlDashboard() {
                     <p className="text-white/25 text-[10px] uppercase tracking-widest mt-1 font-bold">Step 2 of 4</p>
                   </div>
                   <div className="space-y-2.5 pt-1">
-                    {LOCATIONS.map(loc => (
-                      <button key={loc.id} onClick={() => { setSelectedLocation(loc.id); setStep(3); }}
+                    { LOCATIONS.map(loc => (
+                      <button key={ loc.id } onClick={ () => { setSelectedLocation(loc.id); setStep(3); } }
                         className="w-full px-5 py-4 rounded-xl font-bold text-sm transition-all duration-200 border text-left flex items-center justify-between bg-white/[0.02] border-white/[0.06] text-white/50 hover:bg-white/[0.06] hover:text-white hover:border-[#E3087E]/40 hover:shadow-[0_0_15px_rgba(227,8,126,0.10)] group">
-                        <span><span className="material-symbols-outlined text-sm mr-2 align-middle text-white/30">location_on</span>{loc.label}</span>
+                        <span><span className="material-symbols-outlined text-sm mr-2 align-middle text-white/30">location_on</span>{ loc.label }</span>
                         <span className="material-symbols-outlined text-sm text-white/15 group-hover:text-white/40 transition-colors">arrow_forward_ios</span>
                       </button>
-                    ))}
+                    )) }
                   </div>
-                  <button onClick={() => setStep(1)} className="w-full py-3 text-white/25 text-[10px] uppercase tracking-widest font-bold hover:text-white/50 transition-colors rounded-xl border border-dashed border-white/[0.06] hover:border-white/20">← Back to Categories</button>
+                  <button onClick={ () => setStep(1) } className="w-full py-3 text-white/25 text-[10px] uppercase tracking-widest font-bold hover:text-white/50 transition-colors rounded-xl border border-dashed border-white/[0.06] hover:border-white/20">← Back to Categories</button>
                 </div>
-              )}
+              ) }
 
-              {step === 3 && (
+              { step === 3 && (
                 <div className="space-y-5">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -1141,23 +1322,23 @@ export default function GirlDashboard() {
                     </div>
                     <div className="text-right">
                       <p className="text-white/20 text-[8px] uppercase tracking-widest font-bold">Marked</p>
-                      <p className="text-white font-black text-base">{selectedAvailDates.length} days</p>
+                      <p className="text-white font-black text-base">{ selectedAvailDates.length } days</p>
                     </div>
                   </div>
                   <div className="-mx-5 sm:-mx-0">
-                    <ReservationCalendar mode="manage" bookedDates={bookedDates} onAvailabilityChange={setSelectedAvailDates} />
+                    <ReservationCalendar mode="manage" bookedDates={ bookedDates } onAvailabilityChange={ setSelectedAvailDates } />
                   </div>
                   <div className="flex justify-between items-center pt-1">
-                    <button onClick={() => setStep(2)} className="px-4 py-2.5 text-white/25 text-[9px] uppercase tracking-widest font-bold hover:text-white/50 transition-colors rounded-xl border border-dashed border-white/[0.06] hover:border-white/20">← Back</button>
-                    <button onClick={() => selectedAvailDates.length > 0 && setStep(4)}
-                      className={`px-6 py-2.5 rounded-xl font-bold uppercase tracking-widest text-[10px] transition-all duration-200 ${selectedAvailDates.length > 0 ? 'bg-[#E3087E] text-white shadow-[0_0_20px_rgba(227,8,126,0.3)] hover:brightness-110' : 'bg-white/[0.04] text-white/20 cursor-not-allowed border border-white/[0.06]'}`}>
+                    <button onClick={ () => setStep(2) } className="px-4 py-2.5 text-white/25 text-[9px] uppercase tracking-widest font-bold hover:text-white/50 transition-colors rounded-xl border border-dashed border-white/[0.06] hover:border-white/20">← Back</button>
+                    <button onClick={ () => selectedAvailDates.length > 0 && setStep(4) }
+                      className={ `px-6 py-2.5 rounded-xl font-bold uppercase tracking-widest text-[10px] transition-all duration-200 ${selectedAvailDates.length > 0 ? 'bg-[#E3087E] text-white shadow-[0_0_20px_rgba(227,8,126,0.3)] hover:brightness-110' : 'bg-white/[0.04] text-white/20 cursor-not-allowed border border-white/[0.06]'}` }>
                       Continue →
                     </button>
                   </div>
                 </div>
-              )}
+              ) }
 
-              {step === 4 && (
+              { step === 4 && (
                 <div className="space-y-5">
                   <div className="text-center">
                     <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#00ff88]/15 to-[#00ff88]/5 flex items-center justify-center mx-auto mb-3 text-[#00ff88] shadow-[0_0_20px_rgba(0,255,136,0.15)]">
@@ -1167,40 +1348,40 @@ export default function GirlDashboard() {
                     <p className="text-white/25 text-[10px] uppercase tracking-widest mt-1 font-bold">Step 4 of 4</p>
                   </div>
                   <div className="space-y-3 pt-1">
-                    {[{icon:'category',label:'Category',val:selectedCategory},{icon:'location_on',label:'Location',val:LOCATIONS.find(l=>l.id===selectedLocation)?.label},{icon:'calendar_month',label:'Duration',val:`${selectedAvailDates.length} days (${Math.max(1,Math.ceil(selectedAvailDates.length/7))} ${Math.max(1,Math.ceil(selectedAvailDates.length/7))===1?'week':'weeks'})`}].map((item,i) => (
-                      <div key={i} className="bg-white/[0.02] border border-white/[0.06] rounded-2xl px-4 py-3.5 flex items-center justify-between">
+                    { [{ icon: 'category', label: 'Category', val: selectedCategory }, { icon: 'location_on', label: 'Location', val: LOCATIONS.find(l => l.id === selectedLocation)?.label }, { icon: 'calendar_month', label: 'Duration', val: `${selectedAvailDates.length} days (${Math.max(1, Math.ceil(selectedAvailDates.length / 7))} ${Math.max(1, Math.ceil(selectedAvailDates.length / 7)) === 1 ? 'week' : 'weeks'})` }].map((item, i) => (
+                      <div key={ i } className="bg-white/[0.02] border border-white/[0.06] rounded-2xl px-4 py-3.5 flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <span className="material-symbols-outlined text-[#E3087E] text-lg">{item.icon}</span>
+                          <span className="material-symbols-outlined text-[#E3087E] text-lg">{ item.icon }</span>
                           <div>
-                            <p className="text-white/25 text-[9px] uppercase tracking-widest font-bold">{item.label}</p>
-                            <p className="text-white font-bold text-sm mt-0.5">{item.val}</p>
+                            <p className="text-white/25 text-[9px] uppercase tracking-widest font-bold">{ item.label }</p>
+                            <p className="text-white font-bold text-sm mt-0.5">{ item.val }</p>
                           </div>
                         </div>
                       </div>
-                    ))}
+                    )) }
                     <div className="bg-gradient-to-r from-[#E3087E]/10 to-[#E3087E]/5 border border-[#E3087E]/20 rounded-2xl px-4 py-4 flex items-center justify-between">
                       <div>
                         <p className="text-white/25 text-[9px] uppercase tracking-widest font-bold">Total Price</p>
-                        <p className="text-white/40 text-[10px] mt-0.5">{PRICES[selectedCategory]?.[selectedLocation]||0}€/week &times; {Math.max(1,Math.ceil(selectedAvailDates.length/7))}</p>
+                        <p className="text-white/40 text-[10px] mt-0.5">{ categoryPrices?.[selectedLocation]?.[selectedCategory] || 0 }€/week &times; { Math.max(1, Math.ceil(selectedAvailDates.length / 7)) }</p>
                       </div>
-                      <p className="text-2xl font-black text-white">€{(PRICES[selectedCategory]?.[selectedLocation]||0)*Math.max(1,Math.ceil(selectedAvailDates.length/7))}</p>
+                      <p className="text-2xl font-black text-white">€{ (categoryPrices?.[selectedLocation]?.[selectedCategory] || 0) * Math.max(1, Math.ceil(selectedAvailDates.length / 7)) }</p>
                     </div>
                   </div>
-                  {reqMsg && (
-                    <div className={`p-3 rounded-xl text-[10px] text-center font-bold uppercase tracking-widest ${reqMsg.type==='success'?'bg-[#00ff88]/10 text-[#00ff88] border border-[#00ff88]/20':'bg-red-500/10 text-red-400 border border-red-500/20'}`}>{reqMsg.text}</div>
-                  )}
+                  { reqMsg && (
+                    <div className={ `p-3 rounded-xl text-[10px] text-center font-bold uppercase tracking-widest ${reqMsg.type === 'success' ? 'bg-[#00ff88]/10 text-[#00ff88] border border-[#00ff88]/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}` }>{ reqMsg.text }</div>
+                  ) }
                   <div className="flex items-center justify-between gap-3 pt-1">
-                    <button onClick={() => setStep(3)} className="px-4 py-3 text-white/25 text-[10px] uppercase tracking-widest font-bold hover:text-white/50 transition-colors rounded-xl border border-dashed border-white/[0.06] hover:border-white/20">← Back</button>
-                    <button onClick={async()=>{
+                    <button onClick={ () => setStep(3) } className="px-4 py-3 text-white/25 text-[10px] uppercase tracking-widest font-bold hover:text-white/50 transition-colors rounded-xl border border-dashed border-white/[0.06] hover:border-white/20">← Back</button>
+                    <button onClick={ async () => {
                       setReqLoading(true); setReqMsg(null);
                       try {
-                        const sorted = [...selectedAvailDates].map(d=>new Date(d)).sort((a,b)=>a-b);
+                        const sorted = [...selectedAvailDates].map(d => new Date(d)).sort((a, b) => a - b);
                         const startDate = sorted[0].toISOString().split('T')[0];
-                        const endDate = sorted[sorted.length-1].toISOString().split('T')[0];
-                        const price = (PRICES[selectedCategory]?.[selectedLocation]||0)*Math.max(1,Math.ceil(selectedAvailDates.length/7));
-                        const res = await fetch('/wp-json/pascha/v1/girls/request-reservation',{
-                          method:'POST',headers:{'Content-Type':'application/json'},
-                          body:JSON.stringify({email:user.email,category:selectedCategory,location:selectedLocation,start_date:startDate,end_date:endDate,price}),
+                        const endDate = sorted[sorted.length - 1].toISOString().split('T')[0];
+                        const price = (categoryPrices?.[selectedLocation]?.[selectedCategory] || 0) * Math.max(1, Math.ceil(selectedAvailDates.length / 7));
+                        const res = await fetch('/wp-json/pascha/v1/girls/request-reservation', {
+                          method: 'POST', headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ email: user.email, category: selectedCategory, location: selectedLocation, start_date: startDate, end_date: endDate, price }),
                         });
                         const data = await res.json();
                         if (data.success) {
@@ -1208,26 +1389,26 @@ export default function GirlDashboard() {
                           fetchReservations();
                           setShowModal(false);
                           setShowThankYou(true);
-                        } else { setReqMsg({type:'error',text:data.message||'Request failed.'}); }
-                      } catch(err){ console.error(err); setReqMsg({type:'error',text:err.message||'Error'}); }
-                      finally{ setReqLoading(false); }
-                    }} disabled={reqLoading}
+                        } else { setReqMsg({ type: 'error', text: data.message || 'Request failed.' }); }
+                      } catch (err) { console.error(err); setReqMsg({ type: 'error', text: err.message || 'Error' }); }
+                      finally { setReqLoading(false); }
+                    } } disabled={ reqLoading }
                       className="px-8 py-3 bg-[#E3087E] text-white font-bold uppercase tracking-widest rounded-xl text-[11px] hover:brightness-110 transition-all shadow-[0_10px_30px_rgba(227,8,126,0.4)] flex items-center gap-2 disabled:opacity-50">
-                      {reqLoading ? <><span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" /> Submitting...</> : <><span className="material-symbols-outlined text-sm">send</span> Submit</>}
+                      { reqLoading ? <><span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" /> Submitting...</> : <><span className="material-symbols-outlined text-sm">send</span> Submit</> }
                     </button>
                   </div>
                 </div>
-              )}
+              ) }
             </div>
           </div>
         </div>
-      )}
+      ) }
 
-      {/* Thank You Popup */}
-      {showThankYou && (
+      {/* Thank You Popup */ }
+      { showThankYou && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-md animate-in fade-in duration-300" />
-          <div className="relative bg-[#0c0f0f] border border-white/[0.08] rounded-3xl w-full max-w-sm shadow-[0_0_60px_rgba(227,8,126,0.2)] animate-in zoom-in-95 duration-300 p-6 sm:p-8" onClick={e => e.stopPropagation()}>
+          <div className="relative bg-[#0c0f0f] border border-white/[0.08] rounded-3xl w-full max-w-sm shadow-[0_0_60px_rgba(227,8,126,0.2)] animate-in zoom-in-95 duration-300 p-6 sm:p-8" onClick={ e => e.stopPropagation() }>
             <div className="text-center">
               <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#00ff88]/15 to-[#00ff88]/5 flex items-center justify-center mx-auto mb-4 text-[#00ff88] shadow-[0_0_20px_rgba(0,255,136,0.15)]">
                 <span className="material-symbols-outlined text-3xl">check_circle</span>
@@ -1240,7 +1421,7 @@ export default function GirlDashboard() {
                 +43 676 6826881
               </a>
               <div className="mt-8">
-                <button onClick={() => { setShowThankYou(false); setShowModal(false); setStep(1); }}
+                <button onClick={ () => { setShowThankYou(false); setShowModal(false); setStep(1); } }
                   className="px-8 py-3 bg-white/[0.05] text-white/60 font-bold uppercase tracking-widest rounded-xl text-[11px] hover:bg-white/[0.1] hover:text-white transition-all border border-white/[0.08]">
                   Close
                 </button>
@@ -1248,7 +1429,7 @@ export default function GirlDashboard() {
             </div>
           </div>
         </div>
-      )}
+      ) }
 
       <Footer />
     </div>

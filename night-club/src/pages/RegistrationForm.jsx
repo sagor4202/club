@@ -21,6 +21,7 @@ export default function RegistrationForm() {
     address: "",
     placeOfBirth: "",
     publicNumber: "",
+    documentType: "Passport",
     passportNumber: "",
     issuingDate: "",
     issuingAuthority: "",
@@ -29,6 +30,7 @@ export default function RegistrationForm() {
   });
 
   const [verificationDocs, setVerificationDocs] = useState([]);
+  const [personalPhotos, setPersonalPhotos] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -56,6 +58,17 @@ export default function RegistrationForm() {
 
   const handleRemoveFile = (index) => {
     setVerificationDocs(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handlePersonalPhotoChange = (e) => {
+    if (e.target.files) {
+      const selectedFiles = Array.from(e.target.files);
+      setPersonalPhotos(prev => [...prev, ...selectedFiles]);
+    }
+  };
+
+  const handleRemovePersonalPhoto = (index) => {
+    setPersonalPhotos(prev => prev.filter((_, i) => i !== index));
   };
 
   const nextStep = () => setStep(s => s + 1);
@@ -91,6 +104,9 @@ export default function RegistrationForm() {
       // Append all files
       verificationDocs.forEach(file => {
         data.append("verificationDocs[]", file);
+      });
+      personalPhotos.forEach(file => {
+        data.append("personalPhotos[]", file);
       });
 
       const response = await fetch("/wp-json/pascha/v1/register/girl", {
@@ -138,6 +154,7 @@ export default function RegistrationForm() {
         address: "",
         placeOfBirth: "",
         publicNumber: "",
+        documentType: "Passport",
         passportNumber: "",
         issuingDate: "",
         issuingAuthority: "",
@@ -145,9 +162,14 @@ export default function RegistrationForm() {
         confirmPassword: "",
       });
       setVerificationDocs([]);
+      setPersonalPhotos([]);
       setStep(1);
 
-      navigate("/girl-dashboard");
+      // Save registration data to localStorage so GirlDashboard can auto-fill it
+      const { password, confirmPassword, ...profileDataToSave } = formData;
+      localStorage.setItem("registration_profile_data", JSON.stringify(profileDataToSave));
+
+      navigate("/girl-dashboard", { state: { activeTab: "profile" } });
 
     } catch (err) {
       setError(err.message || "An unexpected error occurred.");
@@ -204,20 +226,21 @@ export default function RegistrationForm() {
             
             <form onSubmit={handleSubmit} className="relative z-10">
               
-              {error && (
-                <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-4 rounded-xl text-xs uppercase tracking-widest text-center font-bold mb-6">
-                  {error}
-                </div>
-              )}
-
-              {success && (
-                <div className="bg-green-500/10 border border-green-500/20 text-green-400 p-4 rounded-xl text-xs uppercase tracking-widest text-center font-bold mb-6">
-                  {success}
-                </div>
-              )}
+              <div aria-live="polite">
+                {error && (
+                  <div key="error-msg" className="bg-red-500/10 border border-red-500/20 text-red-400 p-4 rounded-xl text-xs uppercase tracking-widest text-center font-bold mb-6">
+                    {error}
+                  </div>
+                )}
+                {success && (
+                  <div key="success-msg" className="bg-green-500/10 border border-green-500/20 text-green-400 p-4 rounded-xl text-xs uppercase tracking-widest text-center font-bold mb-6">
+                    {success}
+                  </div>
+                )}
+              </div>
 
               {/* Step 1: Identity & Professional Profile */}
-              {step === 1 && (
+              <div className={step === 1 ? 'block' : 'hidden'}>
                 <div className="space-y-10 animate-in fade-in slide-in-from-right-4 duration-500">
                   <div className="text-center">
                     <h2 className="font-['Serif',serif] text-2xl md:text-3xl font-bold text-white mb-2">Identity & Professional Profile</h2>
@@ -239,7 +262,7 @@ export default function RegistrationForm() {
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <label className={labelClass}>Original First Name *</label>
+                        <label className={labelClass}>Given Name *</label>
                         <input 
                           type="text" 
                           name="firstName"
@@ -251,7 +274,7 @@ export default function RegistrationForm() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <label className={labelClass}>Original Last Name *</label>
+                        <label className={labelClass}>Family Name *</label>
                         <input 
                           type="text" 
                           name="lastName"
@@ -290,10 +313,11 @@ export default function RegistrationForm() {
                     <div className="space-y-2">
                       <label className={labelClass}>Date of Birth *</label>
                       <input 
-                        type="date" 
+                        type="text" 
                         name="dob"
                         value={formData.dob}
                         onChange={handleChange}
+                        placeholder="DD/MM/YYYY"
                         className={inputClass} 
                         required 
                       />
@@ -342,10 +366,10 @@ export default function RegistrationForm() {
                     </button>
                   </div>
                 </div>
-              )}
+              </div>
 
               {/* Step 2: Origin & Location */}
-              {step === 2 && (
+              <div className={step === 2 ? 'block' : 'hidden'}>
                 <div className="space-y-10 animate-in fade-in slide-in-from-right-4 duration-500">
                   <div className="text-center">
                     <h2 className="font-['Serif',serif] text-2xl md:text-3xl font-bold text-white mb-2">Origin & Location</h2>
@@ -379,16 +403,16 @@ export default function RegistrationForm() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className={labelClass}>Client Contact Number *</label>
+                    <label className={labelClass}>Client Contact Number</label>
                     <input 
                       type="tel" 
                       name="publicNumber"
                       value={formData.publicNumber}
                       onChange={handleChange}
-                        placeholder="Client contact number" 
+                      placeholder="Client contact number" 
                       className={inputClass} 
-                      required 
                     />
+                    <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest mt-1">Note: Only for Lafaus Girls.</p>
                   </div>
 
                   <div className="flex gap-4 pt-6">
@@ -400,10 +424,10 @@ export default function RegistrationForm() {
                     </button>
                   </div>
                 </div>
-              )}
+              </div>
 
               {/* Step 3: Security Credentials */}
-              {step === 3 && (
+              <div className={step === 3 ? 'block' : 'hidden'}>
                 <div className="space-y-10 animate-in fade-in slide-in-from-right-4 duration-500">
                   <div className="text-center">
                     <h2 className="font-['Serif',serif] text-2xl md:text-3xl font-bold text-white mb-2">Security Credentials</h2>
@@ -412,17 +436,43 @@ export default function RegistrationForm() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
                     <div className="space-y-2">
-                      <label className={labelClass}>Passport/ID Number *</label>
+                      <label className={labelClass}>Document Type *</label>
+                      <select 
+                        name="documentType"
+                        value={formData.documentType}
+                        onChange={handleChange}
+                        className={inputClass}
+                        required
+                      >
+                        <option value="Passport" className="bg-[#0c0f0f] text-white">Passport</option>
+                        <option value="ID Card" className="bg-[#0c0f0f] text-white">ID Card</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className={labelClass}>{formData.documentType || "Passport"} Number *</label>
                       <input 
                         type="text" 
                         name="passportNumber"
                         value={formData.passportNumber}
                         onChange={handleChange}
-                        placeholder="Document ID" 
+                        placeholder={`${formData.documentType || "Passport"} ID`} 
                         className={inputClass} 
                         required 
                       />
                     </div>
+                    
+                    <div className="space-y-2">
+                      <label className={labelClass}>Issuing Date *</label>
+                      <input 
+                        type="date" 
+                        name="issuingDate"
+                        value={formData.issuingDate}
+                        onChange={handleChange}
+                        className={inputClass} 
+                        required 
+                      />
+                    </div>
+
                     <div className="space-y-2">
                       <label className={labelClass}>Issuing Authority *</label>
                       <input 
@@ -430,18 +480,7 @@ export default function RegistrationForm() {
                         name="issuingAuthority"
                         value={formData.issuingAuthority}
                         onChange={handleChange}
-                        placeholder="Authority name & Expiry" 
-                        className={inputClass} 
-                        required 
-                      />
-                    </div>
-                    <div className="md:col-span-2 space-y-2">
-                      <label className={labelClass}>Issuing Date *</label>
-                      <input 
-                        type="date" 
-                        name="issuingDate"
-                        value={formData.issuingDate}
-                        onChange={handleChange}
+                        placeholder="e.g. Austrian Police / Passport Office" 
                         className={inputClass} 
                         required 
                       />
@@ -463,6 +502,33 @@ export default function RegistrationForm() {
                           <div className="text-center">
                             <h4 className="text-white font-bold uppercase tracking-widest text-sm mb-1">Upload high-resolution scans</h4>
                             <p className="text-white/20 text-xs">PDF, JPG or PNG (Max 10MB). Strictly confidential.</p>
+                            {formData.documentType === "ID Card" && (
+                              <p className="text-[#E3087E] text-xs font-bold mt-3 max-w-sm mx-auto bg-[#E3087E]/10 p-2 rounded-lg border border-[#E3087E]/20">
+                                Note: For ID Card you have to upload both Front Side and back side of the ID Card
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="md:col-span-2 space-y-2">
+                      <label className={labelClass}>Personal Photos (Profile Picture) *</label>
+                      <div className="relative group">
+                        <input 
+                          type="file" 
+                          onChange={handlePersonalPhotoChange}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" 
+                          multiple 
+                          accept="image/*"
+                        />
+                        <div className="border-2 border-dashed border-white/10 rounded-[24px] p-12 flex flex-col items-center justify-center gap-4 group-hover:border-[#E3087E]/40 group-hover:bg-[#E3087E]/5 transition-all duration-300">
+                          <div className="w-16 h-16 rounded-full bg-[#E3087E]/10 flex items-center justify-center text-[#E3087E] group-hover:scale-110 transition-transform duration-300">
+                            <span className="material-symbols-outlined text-4xl">face</span>
+                          </div>
+                          <div className="text-center">
+                            <h4 className="text-white font-bold uppercase tracking-widest text-sm mb-1">Upload Personal Photos</h4>
+                            <p className="text-white/20 text-xs">Clear, high-quality images. (Max 10MB).</p>
                           </div>
                         </div>
                       </div>
@@ -476,7 +542,7 @@ export default function RegistrationForm() {
                         const isImage = file.type.startsWith("image/");
                         const objectUrl = isImage ? URL.createObjectURL(file) : "";
                         return (
-                          <div key={index} className="aspect-square rounded-xl bg-white/5 border border-white/10 relative overflow-hidden group/img">
+                          <div key={`doc-${index}`} className="aspect-square rounded-xl bg-white/5 border border-white/10 relative overflow-hidden group/img">
                             {isImage ? (
                               <img src={objectUrl} alt="Preview" className="w-full h-full object-cover opacity-60 group-hover/img:opacity-100 transition-opacity" />
                             ) : (
@@ -488,6 +554,22 @@ export default function RegistrationForm() {
                             <button 
                               type="button" 
                               onClick={() => handleRemoveFile(index)}
+                              className="absolute top-1.5 right-1.5 w-6 h-6 bg-[#ff0000] text-white rounded-lg flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">delete</span>
+                            </button>
+                          </div>
+                        );
+                      })}
+                      {personalPhotos.map((file, index) => {
+                        const objectUrl = URL.createObjectURL(file);
+                        return (
+                          <div key={`photo-${index}`} className="aspect-square rounded-xl bg-white/5 border border-white/10 relative overflow-hidden group/img">
+                            <img src={objectUrl} alt="Preview" className="w-full h-full object-cover opacity-60 group-hover/img:opacity-100 transition-opacity" />
+                            <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-[8px] text-center text-white py-0.5">PHOTO</div>
+                            <button 
+                              type="button" 
+                              onClick={() => handleRemovePersonalPhoto(index)}
                               className="absolute top-1.5 right-1.5 w-6 h-6 bg-[#ff0000] text-white rounded-lg flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity"
                             >
                               <span className="material-symbols-outlined text-[16px]">delete</span>
@@ -521,7 +603,7 @@ export default function RegistrationForm() {
                     </button>
                   </div>
                 </div>
-              )}
+              </div>
 
             </form>
           </div>
@@ -531,9 +613,8 @@ export default function RegistrationForm() {
       <Footer />
 
       {/* Age Verification Modal */}
-      {showAgeModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-all duration-300">
-          <div className="bg-white rounded-2xl shadow-[0_20px_50px_rgba(227,8,126,0.3)] w-full max-w-md p-8 relative animate-in zoom-in-95 duration-300">
+      <div className={`fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-all duration-300 ${showAgeModal ? '' : 'hidden'}`}>
+        <div className="bg-white rounded-2xl shadow-[0_20px_50px_rgba(227,8,126,0.3)] w-full max-w-md p-8 relative animate-in zoom-in-95 duration-300">
             <div className="absolute top-3 right-3 bg-[#E3087E] text-white text-[10px] font-bold px-2.5 py-1 rounded-full tracking-wider">
               18+ Only Adults
             </div>
@@ -563,7 +644,6 @@ export default function RegistrationForm() {
             </div>
           </div>
         </div>
-      )}
     </div>
   );
 }

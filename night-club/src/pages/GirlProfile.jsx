@@ -17,8 +17,8 @@ const BRAUNAU_RATES = [
 ];
 
 const NIGHTCLUB_RATES = [
-  { time: "30 min", price: "150 EURO" },
-  { time: "1 hour", price: "250 EURO" },
+  { time: "30 MIN", price: "150 EURO" },
+  { time: "1 HOUR", price: "300 EURO" },
 ];
 
 const isVideoUrl = (url) => {
@@ -50,6 +50,7 @@ export default function GirlProfile() {
   }, [activeImage]);
 
   const [dynamicGirl, setDynamicGirl] = useState(null);
+  const [ncPricing, setNcPricing] = useState(null);
 
   useEffect(() => {
     const fetchGirls = async () => {
@@ -65,6 +66,11 @@ export default function GirlProfile() {
       }
     };
     if (name) fetchGirls();
+
+    fetch(`/wp-json/pascha/v1/nightclub-pricing?t=${Date.now()}`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => { if (data) setNcPricing(data); })
+      .catch(err => console.error("Error fetching nightclub pricing in profile:", err));
   }, [name]);
 
   // Fallback defaults
@@ -289,7 +295,7 @@ export default function GirlProfile() {
 
             {true && (
               <div className="mb-10">
-                <h2 className="font-['Epilogue'] text-xl font-bold text-white mb-4 uppercase tracking-widest text-[#e9c349]">Rates</h2>
+                <h2 className="font-['Epilogue'] text-xl font-bold text-white mb-4 uppercase tracking-widest text-[#e9c349]">{ (fromClub === "nightclub" || dynamicGirl?.location === "nightclub") ? "VIP RATE" : "RATES" }</h2>
                 <div className="grid grid-cols-2 gap-4">
                   {displayRates.map((price, idx) => (
                     <div key={idx} className="flex justify-between items-center p-4 rounded-xl border border-white/10 bg-white/5">
@@ -308,46 +314,36 @@ export default function GirlProfile() {
               <div className="mb-10">
                 <h2 className="font-['Epilogue'] text-xl font-bold text-white mb-4 uppercase tracking-widest text-[#e9c349]">Nightclub Rates</h2>
                 <div className="space-y-3">
-                  <div className="flex justify-between items-center p-4 rounded-xl border border-[#ff00ff]/30 bg-[#ff00ff]/10">
-                    <div>
-                      <span className="text-white font-['Be_Vietnam_Pro'] text-sm uppercase tracking-wider">Pascha Dollar</span>
-                      <p className="text-white/50 text-[10px] uppercase tracking-widest mt-0.5">Nightclub Special</p>
+                  {(ncPricing?.services?.filter(s => s.category !== 'jacuzzi') || [
+                    { name: "Pascha Dollar", price: "30", subtext: "Nightclub Special" },
+                    { name: "Dusche Show", price: "50", subtext: "Nightclub Special" },
+                    { name: "Room", price: "100", subtext: "Private Time" },
+                    { name: "Room", price: "200", subtext: "Private Time" },
+                  ]).map((item, idx) => (
+                    <div key={item.id || idx} className="flex justify-between items-center p-4 rounded-xl border border-[#ff00ff]/30 bg-[#ff00ff]/10">
+                      <div>
+                        <span className="text-white font-['Be_Vietnam_Pro'] text-sm uppercase tracking-wider">{item.name}</span>
+                        {item.subtext && <p className="text-white/50 text-[10px] uppercase tracking-widest mt-0.5">{item.subtext}</p>}
+                      </div>
+                      <span className="font-['Epilogue'] font-bold text-[#ffabf3] text-xl">{item.price}€</span>
                     </div>
-                    <span className="font-['Epilogue'] font-bold text-[#ffabf3] text-xl">30€</span>
-                  </div>
-                  <div className="flex justify-between items-center p-4 rounded-xl border border-[#ff00ff]/30 bg-[#ff00ff]/10">
-                    <div>
-                      <span className="text-white font-['Be_Vietnam_Pro'] text-sm uppercase tracking-wider">Dusche Show</span>
-                      <p className="text-white/50 text-[10px] uppercase tracking-widest mt-0.5">Nightclub Special</p>
-                    </div>
-                    <span className="font-['Epilogue'] font-bold text-[#ffabf3] text-xl">50€</span>
-                  </div>
-                  <div className="flex justify-between items-center p-4 rounded-xl border border-[#ff00ff]/30 bg-[#ff00ff]/10">
-                    <div>
-                      <span className="text-white font-['Be_Vietnam_Pro'] text-sm uppercase tracking-wider">½ Stunde (30 Minutes) in room</span>
-                      <p className="text-white/50 text-[10px] uppercase tracking-widest mt-0.5">Private Time</p>
-                    </div>
-                    <span className="font-['Epilogue'] font-bold text-[#ffabf3] text-xl">100€</span>
-                  </div>
-                  <div className="flex justify-between items-center p-4 rounded-xl border border-[#ff00ff]/30 bg-[#ff00ff]/10">
-                    <div>
-                      <span className="text-white font-['Be_Vietnam_Pro'] text-sm uppercase tracking-wider">1 Stunde (60 Minutes) in room</span>
-                      <p className="text-white/50 text-[10px] uppercase tracking-widest mt-0.5">Private Time</p>
-                    </div>
-                    <span className="font-['Epilogue'] font-bold text-[#ffabf3] text-xl">200€</span>
-                  </div>
+                  ))}
                 </div>
               </div>
             )}
 
               <div className="flex flex-col sm:flex-row gap-4">
               {girl.whatsapp ? (
-                <a href={`https://wa.me/${girl.whatsapp}`} target="_blank" rel="noreferrer" className="flex-1 bg-[#25D366] text-white py-4 rounded-xl font-bold text-sm uppercase tracking-widest hover:shadow-[0_0_20px_rgba(37,211,102,0.4)] transition-all duration-300 flex items-center justify-center gap-3">
+                <a href={`https://wa.me/${girl.whatsapp.replace(/[^0-9]/g, '')}`} target="_blank" rel="noreferrer" className="flex-1 bg-[#25D366] text-white py-4 rounded-xl font-bold text-sm uppercase tracking-widest hover:shadow-[0_0_20px_rgba(37,211,102,0.4)] transition-all duration-300 flex items-center justify-center gap-3">
                   <FaWhatsapp className="text-xl" /> Book via WhatsApp
+                </a>
+              ) : girl.public_number ? (
+                <a href={`tel:${girl.public_number.replace(/[^0-9+]/g, '')}`} className="flex-1 bg-[#25D366] text-white py-4 rounded-xl font-bold text-sm uppercase tracking-widest hover:shadow-[0_0_20px_rgba(37,211,102,0.4)] transition-all duration-300 flex items-center justify-center gap-3">
+                  <FaWhatsapp className="text-xl" /> Call {girl.public_number}
                 </a>
               ) : (
                 <button disabled className="flex-1 bg-[#25D366]/50 text-white/50 py-4 rounded-xl font-bold text-sm uppercase tracking-widest cursor-not-allowed flex items-center justify-center gap-3">
-                  <FaWhatsapp className="text-xl" /> WhatsApp Unavailable
+                  <FaWhatsapp className="text-xl" /> Unavailable
                 </button>
               )}
               <button onClick={() => navigate(`/appointment/${girl.name}`)} className="flex-1 bg-gradient-to-r from-[#ff00ff] to-[#e1047d] text-white py-4 rounded-xl font-bold text-sm uppercase tracking-widest hover:shadow-[0_0_20px_rgba(255,0,255,0.4)] transition-all duration-300">

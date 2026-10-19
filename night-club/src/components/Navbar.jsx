@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useLanguage } from "../i18n/LanguageContext";
 
@@ -23,14 +23,24 @@ export default function Navbar() {
     navigate("/login");
   };
 
-  const handleMobileNavigate = (path) => {
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        setIsMenuOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  const handleMobileNavigate = (path, options) => {
     setIsMenuOpen(false);
     if (path === "logout") {
       handleSignOut();
     } else if (path.startsWith("http")) {
       window.open(path, "_blank", "noopener,noreferrer");
     } else if (path !== "#") {
-      navigate(path);
+      navigate(path, options);
     }
   };
 
@@ -41,7 +51,7 @@ export default function Navbar() {
       items: [
         { label: "Pascha Laufhaus - Braunau Am Inn", path: "/girls/braunau" },
         { label: "Pascha Laufhaus - Salzburg", path: "/girls/salzburg" },
-        { label: "Pascha NightClub - Salzburg", path: "/girls/nightclub" },
+        { label: "Pascha NightClub - Salzburg", path: "/girls/nightclub", fromBrothelLadies: true },
         { label: t("see_all_ladies"), path: "/girls/all" },
       ],
     },
@@ -66,8 +76,8 @@ export default function Navbar() {
             aria-expanded={isMenuOpen}
             onClick={() => setIsMenuOpen((prev) => !prev)}
           >
-            <span className="material-symbols-outlined text-[30px] leading-none">
-              menu
+            <span className="material-symbols-outlined text-[28px] leading-none transition-transform duration-200">
+              {isMenuOpen ? "close" : "menu"}
             </span>
           </button>
 
@@ -82,6 +92,7 @@ export default function Navbar() {
             <div className="relative group">
               <button
                 type="button"
+                onClick={() => navigate("/girls/all")}
                 className="px-3 py-1.5 xl:px-4 xl:py-2 rounded-full border border-[#ffabf3]/50 bg-[#ffabf3]/10 text-white font-bold text-[9px] xl:text-[10px] 2xl:text-[11px] uppercase tracking-wider hover:bg-[#FF00FF] hover:border-[#FF00FF] transition-all duration-300 active:scale-95 no-hover-scale whitespace-nowrap"
               >
                 {t("see_our_ladies")}
@@ -89,21 +100,21 @@ export default function Navbar() {
 
               <div className="absolute left-1/2 -translate-x-1/2 top-full pt-2 opacity-0 pointer-events-none translate-y-1 transition-all duration-200 group-hover:opacity-100 group-hover:pointer-events-auto group-hover:translate-y-0 group-focus-within:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-y-0">
                 <div className="w-[340px] rounded-2xl border border-white/10 bg-[#0F0F3D]/95 backdrop-blur-xl shadow-[0_0_20px_rgba(255,0,255,0.25)] p-2 flex flex-col gap-1.5">
-                  {[
-                    { label: "Pascha Laufhaus -Braunau Am Inn", path: "braunau" },
-                    { label: "Pascha Laufhaus -Salzburg", path: "salzburg" },
-                    { label: "Pascha NightClub - Salzburg", path: "nightclub" },
-                    { label: t("see_all_ladies"), path: "all" },
-                  ].map((club) => (
-                    <button
-                      key={club.path}
-                      type="button"
-                      className="w-full text-left px-4 py-2.5 rounded-xl text-white/80 hover:text-white bg-white/5 hover:bg-[#FF00FF] border border-white/5 hover:border-[#FF00FF] transition-all duration-300 font-bold text-[10px] uppercase tracking-wider whitespace-nowrap"
-                      onClick={() => navigate(`/girls/${club.path}`)}
-                    >
-                      {club.label}
-                    </button>
-                  ))}
+                      {[
+                            { label: "Pascha Laufhaus -Braunau Am Inn", path: "braunau" },
+                            { label: "Pascha Laufhaus -Salzburg", path: "salzburg" },
+                            { label: "Pascha NightClub - Salzburg", path: "nightclub", fromBrothelLadies: true },
+                            { label: t("see_all_ladies"), path: "all" },
+                          ].map((club) => (
+                            <button
+                              key={club.path}
+                              type="button"
+                              className="w-full text-left px-4 py-2.5 rounded-xl text-white/80 hover:text-white bg-white/5 hover:bg-[#FF00FF] border border-white/5 hover:border-[#FF00FF] transition-all duration-300 font-bold text-[10px] uppercase tracking-wider whitespace-nowrap"
+                              onClick={() => navigate(`/girls/${club.path}`, club.fromBrothelLadies ? { state: { fromBrothelLadies: true } } : undefined)}
+                            >
+                              {club.label}
+                            </button>
+                          ))}
                 </div>
               </div>
             </div>
@@ -185,16 +196,36 @@ export default function Navbar() {
             </button>
 
             {user ? (
-              <button
-                type="button"
-                className="h-10 w-10 flex items-center justify-center rounded-full border-2 border-[#ffabf3] text-[#ffabf3] bg-[#ffabf3]/10 hover:bg-[#FF00FF] hover:text-white hover:border-[#FF00FF] transition-all duration-300 active:scale-95 whitespace-nowrap shrink-0"
-                onClick={() => navigate(user.user_type === "girl" ? "/girl-dashboard" : "/user-dashboard")}
-                title={`${t("dashboard")} (${user.name})`}
-              >
-                <span className="material-symbols-outlined text-[22px] leading-none">
-                  account_circle
-                </span>
-              </button>
+              <div className="relative group flex items-center">
+                <button
+                  type="button"
+                  className="h-10 w-10 flex items-center justify-center rounded-full border-2 border-[#ffabf3] text-[#ffabf3] bg-[#ffabf3]/10 hover:bg-[#FF00FF] hover:text-white hover:border-[#FF00FF] transition-all duration-300 active:scale-95 whitespace-nowrap shrink-0"
+                  onClick={() => navigate(user.user_type === "girl" ? "/girl-dashboard" : "/user-dashboard")}
+                  title={`${t("dashboard")} (${user.name})`}
+                >
+                  <span className="material-symbols-outlined text-[22px] leading-none">
+                    account_circle
+                  </span>
+                </button>
+                <div className="absolute right-0 top-full pt-2 opacity-0 pointer-events-none translate-y-1 transition-all duration-200 group-hover:opacity-100 group-hover:pointer-events-auto group-hover:translate-y-0 group-focus-within:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-y-0">
+                  <div className="w-[180px] rounded-2xl border border-white/10 bg-[#0F0F3D]/95 backdrop-blur-xl shadow-[0_0_20px_rgba(255,0,255,0.25)] p-2 flex flex-col gap-1.5">
+                    <button
+                      type="button"
+                      className="w-full text-left px-4 py-2.5 rounded-xl text-white/80 hover:text-white bg-white/5 hover:bg-[#FF00FF] border border-white/5 hover:border-[#FF00FF] transition-all duration-300 font-bold text-[10px] uppercase tracking-wider whitespace-nowrap"
+                      onClick={() => navigate(user.user_type === "girl" ? "/girl-dashboard" : "/user-dashboard")}
+                    >
+                      Dashboard
+                    </button>
+                    <button
+                      type="button"
+                      className="w-full text-left px-4 py-2.5 rounded-xl text-white/80 hover:text-white bg-white/5 hover:bg-red-500 border border-white/5 hover:border-red-500 transition-all duration-300 font-bold text-[10px] uppercase tracking-wider whitespace-nowrap"
+                      onClick={handleSignOut}
+                    >
+                      Sign Out
+                    </button>
+                  </div>
+                </div>
+              </div>
             ) : (
               <button
                 type="button"
@@ -208,20 +239,32 @@ export default function Navbar() {
         </div>
       </div>
 
+      {/* Backdrop overlay to close menu on outside click */}
+      {isMenuOpen && (
+        <div
+          className="fixed inset-0 z-[-1] bg-black/50 backdrop-blur-[2px] transition-opacity duration-300"
+          onClick={() => setIsMenuOpen(false)}
+        />
+      )}
+
       <div
         className={[
-          "lg:hidden overflow-hidden transition-[max-height,opacity] duration-300",
-          isMenuOpen ? "max-h-[calc(100vh-64px)] opacity-100" : "max-h-0 opacity-0",
+          "overflow-hidden transition-all duration-300",
+          "lg:absolute lg:top-full lg:left-6 lg:w-[380px] lg:mt-2",
+          isMenuOpen
+            ? "max-h-[calc(100vh-64px)] lg:max-h-[calc(100vh-85px)] opacity-100 pointer-events-auto"
+            : "max-h-0 opacity-0 pointer-events-none",
         ].join(" ")}
       >
-        <div className="px-4 sm:px-6 pb-4 max-h-[calc(100vh-82px)] overflow-y-auto">
-          <div className="rounded-2xl border border-white/10 bg-[#0F0F3D]/95 backdrop-blur-xl p-3 shadow-[0_20px_50px_rgba(0,0,0,0.35)]">
+        <div className="px-4 sm:px-6 lg:px-0 pb-4 max-h-[calc(100vh-82px)] overflow-y-auto">
+          <div className="rounded-2xl border border-white/10 bg-[#0F0F3D]/95 backdrop-blur-xl p-3 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
             {[
               { label: t("get_appointment"), path: "/girls/all" },
               { label: t("free_dating_appointment"), path: "#" },
               { label: "Pascha Sex Portel", path: "https://paschasexportal.com/" },
               { label: t("live_video_chat"), path: "https://call.paschasexportal.com/?room=b36669dc-ca5c-40d2-9c8c-392a62affafb" },
-              { label: t("shop_at_apeshop"), path: "https://apeshop.at/" },
+              { label: t("become_apeshop_partner"), path: "https://apeshop.at/" },
+              { label: t("buy_apeshop_digital_products"), path: "https://apeshop.at/" },
             ].map((item) => (
               <button
                 key={item.label}
@@ -251,7 +294,7 @@ export default function Navbar() {
                       key={item.label}
                       type="button"
                       className="w-[calc(100%-16px)] mx-2 mb-1 flex items-center gap-2 rounded-lg px-3 py-2.5 text-left text-white/75 hover:text-white bg-white/5 hover:bg-[#ff00ff]/80 border border-white/5 transition-all font-['Be_Vietnam_Pro'] text-sm"
-                      onClick={() => handleMobileNavigate(item.path)}
+                      onClick={() => handleMobileNavigate(item.path, item.fromBrothelLadies ? { state: { fromBrothelLadies: true } } : undefined)}
                     >
                       <span className="h-1.5 w-1.5 rounded-full bg-[#e9c349] shadow-[0_0_10px_rgba(233,195,73,0.7)]"></span>
                       {item.label}
@@ -262,7 +305,10 @@ export default function Navbar() {
             ))}
 
             {(user
-              ? [{ label: `${t("dashboard")} (${user.name})`, path: user.user_type === "girl" ? "/girl-dashboard" : "/user-dashboard" }]
+              ? [
+                  { label: `${t("dashboard")} (${user.name})`, path: user.user_type === "girl" ? "/girl-dashboard" : "/user-dashboard" },
+                  { label: "Sign Out", path: "logout" }
+                ]
               : [{ label: t("login_signup"), path: "/register" }]
             ).map((item) => (
               <button

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { FaWhatsapp } from "react-icons/fa";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import RoomReservation from "../components/RoomReservation";
@@ -12,6 +12,7 @@ const CLUBS = {
     heroImg: "/wp-content/uploads/2026/05/hero-01.png",
     mapLink: "https://maps.app.goo.gl/gM9w6F5DfrXGDjsi9",
     whatsapp: "+43 676 3303336",
+    email: "info@pascha-salzburg.at",
   },
   salzburg: {
     name: "pascha Laufhaus - Salzburg",
@@ -19,6 +20,7 @@ const CLUBS = {
     heroImg: "/wp-content/themes/night-club-theme/dist/images/hero-02.jpeg",
     mapLink: "https://maps.app.goo.gl/Qb6ShHv4Z7o1EK6L6",
     whatsapp: "+43 676 6826881",
+    email: "info@pascha-salzburg.at",
   },
   nightclub: {
     name: "Pascha nightclub - Salzburg",
@@ -26,6 +28,7 @@ const CLUBS = {
     heroImg: "/wp-content/themes/night-club-theme/dist/images/hero-03.mp4",
     mapLink: "https://maps.app.goo.gl/Qb6ShHv4Z7o1EK6L6",
     whatsapp: "+43 676 6826881",
+    email: "info@pascha-salzburg.at",
   },
   all: {
     name: "All Our Ladies",
@@ -98,7 +101,7 @@ export default function LocationGirls() {
   const soonLastTsRef = useRef(0);
   const soonPausedRef = useRef(false);
 
-  
+
   const [showAuthPopup, setShowAuthPopup] = useState(false);
   const [user] = useState(() => {
     try {
@@ -115,20 +118,22 @@ export default function LocationGirls() {
   const [ncReqLoading, setNcReqLoading] = useState(false);
   const [ncReqMsg, setNcReqMsg] = useState(null);
 
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const submitted = searchParams.get('submitted');
+
   useEffect(() => {
-    if (club === "nightclub" && user?.user_type === "girl") {
+    if (club === "nightclub" && user?.user_type === "girl" && !submitted) {
       setShowNightclubForm(true);
     } else {
       setShowNightclubForm(false);
     }
-  }, [club, user]);
-
-  // Require login for nightclub page
+  }, [club, user, submitted]);
   useEffect(() => {
-    if (club === "nightclub" && !user && !isWpAdmin) {
+    if (club === "nightclub" && !user && !isWpAdmin && !location.state?.fromBrothelLadies && !location.state?.fromNightclubCard) {
       navigate("/login", { replace: true });
     }
-  }, [club, user, isWpAdmin, navigate]);
+  }, [club, user, isWpAdmin, navigate, location.state?.fromBrothelLadies, location.state?.fromNightclubCard]);
 
   // State for per‑girl reservation modal
   const [activeGirl, setActiveGirl] = useState(null); // currently selected girl object
@@ -206,7 +211,117 @@ export default function LocationGirls() {
   // Auth check removed per user request
 
 
-  const clubInfo = CLUBS[club];
+  const [mediaSettings, setMediaSettings] = useState(null);
+  const [ncPricing, setNcPricing] = useState(null);
+
+  useEffect(() => {
+    fetch(`/wp-json/pascha/v1/media?t=${Date.now()}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && typeof data === "object") {
+          setMediaSettings(data);
+        }
+      })
+      .catch((err) => console.error("Error fetching media:", err));
+
+    fetch(`/wp-json/pascha/v1/nightclub-pricing?t=${Date.now()}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && typeof data === "object") {
+          setNcPricing(data);
+        }
+      })
+      .catch((err) => console.error("Error fetching nightclub pricing:", err));
+  }, []);
+
+  const standardServices = useMemo(() => {
+    const list = ncPricing?.services?.filter((s) => s.category !== "jacuzzi");
+    if (list && list.length > 0) return list;
+    return [
+      { name: "Pascha Dollar", price: "30" },
+      { name: "Dusche Show", price: "50" },
+      { name: "Room", price: "100" },
+      { name: "Room", price: "200" },
+    ];
+  }, [ncPricing]);
+
+  const jacuzziServices = useMemo(() => {
+    const list = ncPricing?.services?.filter((s) => s.category === "jacuzzi");
+    if (list && list.length > 0) return list;
+    return [
+      { name: "Jacuzzi Room", price: "300" },
+      { name: "Sexdolls Room", price: "200" },
+    ];
+  }, [ncPricing]);
+
+  const damenDrinks = useMemo(() => {
+    if (ncPricing?.damen_drinks && ncPricing.damen_drinks.length > 0) {
+      return ncPricing.damen_drinks;
+    }
+    return [
+      { name: "Pascha Crystal (0,35 l)", price: "155" },
+      { name: "Pascha Crystal (0,70 l)", price: "250" },
+      { name: "Schlumberger (0,7 l)", price: "150" },
+      { name: "Moët & Chandon (0,30 l)", price: "150" },
+      { name: "Moët & Chandon (0,70 l)", price: "300" },
+      { name: "Moët & Chandon Rosé (0,70 l)", price: "350" },
+      { name: "Moët & Magnum (1,5 l)", price: "650" },
+      { name: "Cremant (0,7 l)", price: "500" },
+      { name: "Dom Pérignon (0,7 l)", price: "1000" },
+      { name: "Nyetimber (0,7 l)", price: "250" },
+    ];
+  }, [ncPricing]);
+
+  const herrenEntryPrice = ncPricing?.herren_drinks?.entry_price || "40";
+  const herrenSoftDrinks = useMemo(() => {
+    if (ncPricing?.herren_drinks?.soft_drinks && ncPricing.herren_drinks.soft_drinks.length > 0) {
+      return ncPricing.herren_drinks.soft_drinks;
+    }
+    return [
+      "Diverse Soft Drinks",
+      "Orangensaft",
+      "Kaffee",
+      "Tonic",
+      "Coca Cola",
+      "Energy Drinks",
+      "Bier",
+      "Mineralwasser",
+      "Wein (Rot & Weiss)",
+    ];
+  }, [ncPricing]);
+
+  const herrenBottles = useMemo(() => {
+    if (ncPricing?.herren_drinks?.bottles && ncPricing.herren_drinks.bottles.length > 0) {
+      return ncPricing.herren_drinks.bottles;
+    }
+    return [
+      "Pascha Wodka (0,7 l)",
+      "Pascha Rum (0,7 l)",
+      "Pascha Gin (0,7 l)",
+      "Pascha Whisky (0,7 l)",
+    ];
+  }, [ncPricing]);
+
+  const protectionBadge = ncPricing?.extra_info?.protection_badge || "Alles mit Schutz!";
+
+  const baseClubInfo = CLUBS[club];
+  const clubInfo = useMemo(() => {
+    if (!baseClubInfo) return null;
+    let heroImg = baseClubInfo.heroImg;
+
+    if (club === "nightclub" && mediaSettings?.nightclub_video?.src) {
+      heroImg = mediaSettings.nightclub_video.src;
+    } else if (club === "braunau" && mediaSettings?.section_photos?.braunau_club) {
+      heroImg = mediaSettings.section_photos.braunau_club;
+    } else if (club === "salzburg" && mediaSettings?.section_photos?.salzburg_club) {
+      heroImg = mediaSettings.section_photos.salzburg_club;
+    }
+
+    return {
+      ...baseClubInfo,
+      heroImg,
+    };
+  }, [baseClubInfo, club, mediaSettings]);
 
   const [allGirls, setAllGirls] = useState([]);
   const [allReservations, setAllReservations] = useState([]);
@@ -231,8 +346,8 @@ export default function LocationGirls() {
   today.setHours(0, 0, 0, 0);
 
   const availableGirls = useMemo(() => {
-    return allGirls.filter(g => {
-      return allReservations.some(r => {
+    return allGirls.map(g => {
+      const activeRes = allReservations.find(r => {
         const matchLocation = club === "all" || club === "laufhaus" || club === "nightclub" || r.location === club;
         if (!matchLocation) return false;
 
@@ -247,14 +362,15 @@ export default function LocationGirls() {
         end.setHours(23, 59, 59, 999);
         return today >= start && today <= end;
       });
-    });
+      return activeRes ? { ...g, top_badge: activeRes.top_badge } : null;
+    }).filter(Boolean);
   }, [allGirls, allReservations, club, today]);
 
   const nightclubGridGirls = useMemo(() => {
     if (club !== "nightclub" && club !== "all") return [];
     const now = new Date();
-    return allGirls.filter(g => {
-      return allReservations.some(r => {
+    return allGirls.map(g => {
+      const ncRes = allReservations.find(r => {
         if (r.location !== "nightclub") return false;
         if (r.status && r.status !== "approved") return false;
 
@@ -277,12 +393,13 @@ export default function LocationGirls() {
 
         return true;
       });
-    });
+      return ncRes ? { ...g, top_badge: ncRes.top_badge } : null;
+    }).filter(Boolean);
   }, [allGirls, allReservations, club, today]);
 
   const allAvailableGirlsByLocation = useMemo(() => {
-    const isActiveReservationForGirl = (girl, location) => {
-      return allReservations.some(r => {
+    const getActiveReservationForGirl = (girl, location) => {
+      return allReservations.find(r => {
         if (r.location !== location) return false;
         if (r.status && r.status !== "approved") return false;
 
@@ -298,25 +415,43 @@ export default function LocationGirls() {
     };
 
     return {
-      braunau: allGirls.filter(girl => isActiveReservationForGirl(girl, "braunau")),
-      salzburg: allGirls.filter(girl => isActiveReservationForGirl(girl, "salzburg")),
+      braunau: allGirls.map(girl => {
+        const res = getActiveReservationForGirl(girl, "braunau");
+        return res ? { ...girl, top_badge: res.top_badge } : null;
+      }).filter(Boolean),
+      salzburg: allGirls.map(girl => {
+        const res = getActiveReservationForGirl(girl, "salzburg");
+        return res ? { ...girl, top_badge: res.top_badge } : null;
+      }).filter(Boolean),
       nightclub: nightclubGridGirls,
     };
   }, [allGirls, allReservations, nightclubGridGirls, today]);
 
   const soonGirls = useMemo(() => {
-    return allGirls.filter(g => {
-      // If she is available right now in this club, she is not "upcoming"
-      const isActiveHere = availableGirls.some(ag => ag.id === g.id);
-      if (isActiveHere) return false;
-
-      // Check if she has a future approved reservation for this club
-      const hasFutureHere = allReservations.some(r => {
+    return allGirls.map(g => {
+      // 1. Exclude if she has an active approved reservation today
+      const isActiveToday = allReservations.some(r => {
         const matchLocation = club === "all" || club === "laufhaus" || club === "nightclub" || r.location === club;
         if (!matchLocation) return false;
-        
+        if (r.status && r.status !== "approved") return false;
+        const isSameGirl = (r.user_email && r.user_email === g.email) || r.girl_name === g.name;
+        if (!isSameGirl) return false;
+        const start = new Date(r.start_date);
+        const end = new Date(r.end_date);
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+        return today >= start && today <= end;
+      });
+
+      if (isActiveToday) return null;
+
+      // 2. Check if she has a future approved reservation for this club (starts after today)
+      const futureRes = allReservations.find(r => {
+        const matchLocation = club === "all" || club === "laufhaus" || club === "nightclub" || r.location === club;
+        if (!matchLocation) return false;
+
         if (r.status !== "approved") return false;
-        
+
         const isSameGirl = (r.user_email && r.user_email === g.email) || r.girl_name === g.name;
         if (!isSameGirl) return false;
 
@@ -325,9 +460,9 @@ export default function LocationGirls() {
         return start > today;
       });
 
-      return hasFutureHere;
-    });
-  }, [allGirls, allReservations, availableGirls, club, today]);
+      return futureRes ? { ...g, top_badge: futureRes.top_badge } : null;
+    }).filter(Boolean);
+  }, [allGirls, allReservations, club, today]);
 
   const atmosphere = useMemo(
     () => [
@@ -669,14 +804,14 @@ export default function LocationGirls() {
                 className="font-['Be_Vietnam_Pro'] text-sm md:text-base text-white/80 max-w-3xl mx-auto leading-relaxed hover:text-[#ffabf3] transition-colors inline-flex items-center justify-center gap-2"
               >
                 <svg stroke="currentColor" fill="currentColor" strokeWidth="0" viewBox="0 0 384 512" className="w-4 h-4 shrink-0" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M172.268 501.67C26.97 291.031 0 269.413 0 192 0 85.961 85.961 0 192 0s192 85.961 192 192c0 77.413-26.97 99.031-172.268 309.67-9.535 13.774-29.93 13.773-39.464 0zM192 272c44.183 0 80-35.817 80-80s-35.817-80-80-80-80 35.817-80 80 35.817 80 80 80z"/>
+                  <path d="M172.268 501.67C26.97 291.031 0 269.413 0 192 0 85.961 85.961 0 192 0s192 85.961 192 192c0 77.413-26.97 99.031-172.268 309.67-9.535 13.774-29.93 13.773-39.464 0zM192 272c44.183 0 80-35.817 80-80s-35.817-80-80-80-80 35.817-80 80 35.817 80 80 80z" />
                 </svg>
                 {clubInfo.address?.replace(" // ", ", ")}
               </a>
             ) : (
               <p className="font-['Be_Vietnam_Pro'] text-sm md:text-base text-white/80 max-w-3xl mx-auto leading-relaxed inline-flex items-center justify-center gap-2">
                 <svg stroke="currentColor" fill="currentColor" strokeWidth="0" viewBox="0 0 384 512" className="w-4 h-4 shrink-0" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M172.268 501.67C26.97 291.031 0 269.413 0 192 0 85.961 85.961 0 192 0s192 85.961 192 192c0 77.413-26.97 99.031-172.268 309.67-9.535 13.774-29.93 13.773-39.464 0zM192 272c44.183 0 80-35.817 80-80s-35.817-80-80-80-80 35.817-80 80 35.817 80 80 80z"/>
+                  <path d="M172.268 501.67C26.97 291.031 0 269.413 0 192 0 85.961 85.961 0 192 0s192 85.961 192 192c0 77.413-26.97 99.031-172.268 309.67-9.535 13.774-29.93 13.773-39.464 0zM192 272c44.183 0 80-35.817 80-80s-35.817-80-80-80-80 35.817-80 80 35.817 80 80 80z" />
                 </svg>
                 {clubInfo.address?.replace(" // ", ", ")}
               </p>
@@ -686,125 +821,120 @@ export default function LocationGirls() {
 
         {club === "nightclub" && (
           <>
-          <section className="max-w-[1280px] mx-auto px-6 lg:px-8 mt-14 mb-20 relative z-10">
-            <div className="absolute -inset-x-8 -top-12 h-[220px] bg-gradient-to-b from-[#0f0f3d]/35 via-[#0f0f3d]/20 to-transparent blur-2xl rounded-[48px] pointer-events-none"></div>
-            <NightclubDanceHeading />
-            <div className="mb-10 relative z-10">
-              <h2 className="font-['Epilogue'] text-2xl lg:text-3xl font-extrabold text-white uppercase tracking-widest mb-2">
-                Available Girls
-              </h2>
-              <p className="font-['Be_Vietnam_Pro'] text-sm text-white/70 tracking-wide">
-                Assigned by admin from reservations
-              </p>
-            </div>
-
-            {nightclubGridGirls.length === 0 ? (
-              <div className="glass-card rounded-2xl border border-white/10 p-10 text-center text-white/50 relative z-10">
-                No girls assigned yet.
+            <section className="max-w-[1280px] mx-auto px-6 lg:px-8 mt-14 mb-20 relative z-10">
+              <div className="absolute -inset-x-8 -top-12 h-[220px] bg-gradient-to-b from-[#0f0f3d]/35 via-[#0f0f3d]/20 to-transparent blur-2xl rounded-[48px] pointer-events-none"></div>
+              <NightclubDanceHeading />
+              <div className="mb-10 relative z-10">
+                <h2 className="font-['Epilogue'] text-2xl lg:text-3xl font-extrabold text-white uppercase tracking-widest mb-2">
+                  Available Girls
+                </h2>
+                <p className="font-['Be_Vietnam_Pro'] text-sm text-white/70 tracking-wide">
+                  Assigned by admin from reservations
+                </p>
               </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 relative z-10">
-                {nightclubGridGirls.map((g) => (
-                  <div
-                    key={`nightclub-grid-${g.name}`}
-                    onClick={() => navigate(`/profile/${g.name}`, { state: { from: club } })}
-                    className="cursor-pointer glass-card rounded-2xl overflow-hidden transition-all duration-500 group relative hover:shadow-[0_0_40px_rgba(255,0,255,0.25)] border border-white/10"
-                  >
-                    {/* Available Badge */}
-                    <div className="absolute top-3 left-3 z-30 pointer-events-none">
-                      <div className="bg-[#00e5ff]/95 text-[#061019] text-[12px] font-black px-3.5 py-2 rounded-full border border-white/25 shadow-[0_0_22px_rgba(0,229,255,0.55)] uppercase tracking-[0.18em] flex items-center gap-2 drop-shadow-[0_1px_1px_rgba(0,0,0,0.45)]">
-                        <span className="w-2.5 h-2.5 bg-[#061019] rounded-full animate-pulse shadow-[0_0_10px_rgba(0,229,255,0.65)]"></span>
-                        Available
+
+              {nightclubGridGirls.length === 0 ? (
+                <div className="glass-card rounded-2xl border border-white/10 p-10 text-center text-white/50 relative z-10">
+                  No girls assigned yet.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 relative z-10">
+                  {nightclubGridGirls.map((g) => (
+                    <div
+                      key={`nightclub-grid-${g.name}`}
+                      onClick={() => navigate(`/profile/${g.name}`, { state: { from: club } })}
+                      className="cursor-pointer glass-card rounded-2xl overflow-hidden transition-all duration-500 group relative hover:shadow-[0_0_40px_rgba(255,0,255,0.25)] border border-white/10"
+                    >
+                      {/* Available Badge */}
+                      <div className="absolute top-3 left-3 z-30 pointer-events-none">
+                        <div className="bg-[#00e5ff]/95 text-[#061019] text-[12px] font-black px-3.5 py-2 rounded-full border border-white/25 shadow-[0_0_22px_rgba(0,229,255,0.55)] uppercase tracking-[0.18em] flex items-center gap-2 drop-shadow-[0_1px_1px_rgba(0,0,0,0.45)]">
+                          <span className="w-2.5 h-2.5 bg-[#061019] rounded-full animate-pulse shadow-[0_0_10px_rgba(0,229,255,0.65)]"></span>
+                          Available
+                        </div>
                       </div>
-                    </div>
 
-                    <div className="relative h-[380px] overflow-hidden">
-                      {(g.img_type === "video" || isVideoUrl(g.img)) ? (
-                        <video
-                          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                          src={g.img}
-                          autoPlay
-                          muted
-                          loop
-                          playsInline
-                        />
-                      ) : (
-                        <img
-                          alt={g.name}
-                          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                          src={g.img}
-                          loading="lazy"
-                        />
-                      )}
+                      <div className="relative h-[380px] overflow-hidden">
+                        {(g.img_type === "video" || isVideoUrl(g.img)) ? (
+                          <video
+                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                            src={g.img}
+                            autoPlay
+                            muted
+                            loop
+                            playsInline
+                          />
+                        ) : (
+                          <img
+                            alt={g.name}
+                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                            src={g.img}
+                            loading="lazy"
+                          />
+                        )}
 
-                      <div className="absolute bottom-0 left-0 w-full p-5 bg-gradient-to-t from-[#0f0f3d] via-[#0f0f3d]/60 to-transparent z-10">
-                        <h3 className="font-['Epilogue'] text-2xl font-black text-white tracking-wide mb-1 text-center drop-shadow-[0_1px_1px_rgba(0,0,0,0.6)]">
-                          {g.name}
-                        </h3>
-                        <p className="font-['Be_Vietnam_Pro'] text-[13px] leading-relaxed mb-2 font-semibold flex items-center justify-center gap-1.5 text-[#e9c349] drop-shadow-[0_1px_1px_rgba(0,0,0,0.55)]">
-                          <span className="material-symbols-outlined text-sm text-[#ffabf3]">location_on</span>
-                          Available in {clubInfo.name}
-                        </p>
+                        <div className="absolute bottom-0 left-0 w-full p-5 bg-gradient-to-t from-[#0f0f3d] via-[#0f0f3d]/60 to-transparent z-10">
+                          <h3 className="font-['Epilogue'] text-2xl font-black text-white tracking-wide mb-1 text-center drop-shadow-[0_1px_1px_rgba(0,0,0,0.6)]">
+                            {g.name}
+                          </h3>
+                          <p className="font-['Be_Vietnam_Pro'] text-[13px] leading-relaxed mb-2 font-semibold flex items-center justify-center gap-1.5 text-[#e9c349] drop-shadow-[0_1px_1px_rgba(0,0,0,0.55)]">
+                            <span className="material-symbols-outlined text-sm text-[#ffabf3]">location_on</span>
+                            Available in {clubInfo.name}
+                          </p>
 
                           <div className="mt-3 flex justify-center">
-                          <div className="bg-[#ff00ff]/15 text-[#ffabf3] text-[12px] font-black px-4 py-2 rounded-full border border-[#ff00ff]/30 shadow-[0_0_18px_rgba(255,0,255,0.25)] tracking-[0.12em] flex items-center gap-2">
-                            <span className="material-symbols-outlined text-sm">schedule</span>
-                            {(() => {
-                              if (!g.nightclub_from_datetime || !g.nightclub_to_datetime) return "Available Now";
-                              const from = new Date(g.nightclub_from_datetime);
-                              const to = new Date(g.nightclub_to_datetime);
-                              const fmtTime = (d) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                              return from.toDateString() === to.toDateString()
-                                ? `${fmtTime(from)} — ${fmtTime(to)}`
-                                : `${from.toLocaleString()} — ${to.toLocaleString()}`;
-                            })()}
+                            <div className="bg-[#ff00ff]/15 text-[#ffabf3] text-[12px] font-black px-4 py-2 rounded-full border border-[#ff00ff]/30 shadow-[0_0_18px_rgba(255,0,255,0.25)] tracking-[0.12em] flex items-center gap-2">
+                              <span className="material-symbols-outlined text-sm">schedule</span>
+                              {(() => {
+                                if (!g.nightclub_from_datetime || !g.nightclub_to_datetime) return "Available Now";
+                                return "07:00 PM — 07:00 AM";
+                              })()}
+                            </div>
                           </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-
-          {false && (
-            <section className="max-w-[1280px] mx-auto px-6 lg:px-8 mb-20 relative z-10">
-              <div className="bg-[#0f0f3d]/60 backdrop-blur-xl border border-white/10 rounded-3xl p-8 lg:p-12 hover:border-[#00ff88]/30 transition-all duration-500 shadow-2xl relative overflow-hidden flex flex-col justify-between">
-                <div className="absolute top-0 left-0 w-64 h-64 bg-[#00ff88]/5 blur-[80px] rounded-full pointer-events-none"></div>
-                <div>
-                  <div className="flex justify-between items-center mb-10 pb-6 border-b border-white/10">
-                    <div>
-                      <h3 className="font-['Epilogue'] text-3xl font-black text-white tracking-wider uppercase">Herren Getränke</h3>
-                      <p className="text-[#00ff88] text-[10px] font-black uppercase tracking-widest mt-1">Gratis Consumation</p>
-                    </div>
-                    <span className="bg-[#ff00ff]/20 text-[#ff00ff] border border-[#ff00ff]/30 text-sm px-4 py-1.5 rounded-full font-black">40€</span>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/5 rounded-xl text-white/90 font-medium"><span className="w-1.5 h-1.5 bg-[#00ff88] rounded-full"></span><span className="font-['Be_Vietnam_Pro'] text-sm">Diverse Soft Drinks</span></div>
-                    <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/5 rounded-xl text-white/90 font-medium"><span className="w-1.5 h-1.5 bg-[#00ff88] rounded-full"></span><span className="font-['Be_Vietnam_Pro'] text-sm">Orangensaft</span></div>
-                    <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/5 rounded-xl text-white/90 font-medium"><span className="w-1.5 h-1.5 bg-[#00ff88] rounded-full"></span><span className="font-['Be_Vietnam_Pro'] text-sm">Kaffee</span></div>
-                    <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/5 rounded-xl text-white/90 font-medium"><span className="w-1.5 h-1.5 bg-[#00ff88] rounded-full"></span><span className="font-['Be_Vietnam_Pro'] text-sm">Tonic</span></div>
-                    <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/5 rounded-xl text-white/90 font-medium"><span className="w-1.5 h-1.5 bg-[#00ff88] rounded-full"></span><span className="font-['Be_Vietnam_Pro'] text-sm">Coca Cola</span></div>
-                    <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/5 rounded-xl text-white/90 font-medium"><span className="w-1.5 h-1.5 bg-[#00ff88] rounded-full"></span><span className="font-['Be_Vietnam_Pro'] text-sm">Energy Drinks</span></div>
-                    <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/5 rounded-xl text-white/90 font-medium"><span className="w-1.5 h-1.5 bg-[#00ff88] rounded-full"></span><span className="font-['Be_Vietnam_Pro'] text-sm">Bier</span></div>
-                    <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/5 rounded-xl text-white/90 font-medium"><span className="w-1.5 h-1.5 bg-[#00ff88] rounded-full"></span><span className="font-['Be_Vietnam_Pro'] text-sm">Mineralwasser</span></div>
-                    <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/5 rounded-xl text-white/90 font-medium"><span className="w-1.5 h-1.5 bg-[#00ff88] rounded-full"></span><span className="font-['Be_Vietnam_Pro'] text-sm">Wein (Rot &amp; Weiss)</span></div>
-                  </div>
-                  <div className="mt-8 pt-8 border-t border-white/10">
-                    <h4 className="font-['Epilogue'] text-xs font-black text-white/40 uppercase tracking-widest mb-4">Premium Bottles (Gratis)</h4>
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center font-['Be_Vietnam_Pro'] text-white/90"><span>Pascha Wodka (0,7 l)</span><span className="text-[#00ff88] text-xs font-bold uppercase tracking-widest">GRATIS</span></div>
-                      <div className="flex justify-between items-center font-['Be_Vietnam_Pro'] text-white/90"><span>Pascha Rum (0,7 l)</span><span className="text-[#00ff88] text-xs font-bold uppercase tracking-widest">GRATIS</span></div>
-                      <div className="flex justify-between items-center font-['Be_Vietnam_Pro'] text-white/90"><span>Pascha Gin (0,7 l)</span><span className="text-[#00ff88] text-xs font-bold uppercase tracking-widest">GRATIS</span></div>
-                      <div className="flex justify-between items-center font-['Be_Vietnam_Pro'] text-white/90"><span>Pascha Whisky (0,7 l)</span><span className="text-[#00ff88] text-xs font-bold uppercase tracking-widest">GRATIS</span></div>
-                    </div>
-                  </div>
+                  ))}
                 </div>
-                <div className="mt-12 text-center text-white/30 text-[10px] uppercase tracking-widest font-medium">Unser Etablissement bietet Ihnen eine einzigartige Kombination aus erstklassigem Entertainment und diskretem Service.</div>
-              </div>
+              )}
             </section>
-          )}
+
+            {false && (
+              <section className="max-w-[1280px] mx-auto px-6 lg:px-8 mb-20 relative z-10">
+                <div className="bg-[#0f0f3d]/60 backdrop-blur-xl border border-white/10 rounded-3xl p-8 lg:p-12 hover:border-[#00ff88]/30 transition-all duration-500 shadow-2xl relative overflow-hidden flex flex-col justify-between">
+                  <div className="absolute top-0 left-0 w-64 h-64 bg-[#00ff88]/5 blur-[80px] rounded-full pointer-events-none"></div>
+                  <div>
+                    <div className="flex justify-between items-center mb-10 pb-6 border-b border-white/10">
+                      <div>
+                        <h3 className="font-['Epilogue'] text-3xl font-black text-white tracking-wider uppercase">Herren Getränke</h3>
+                        <p className="text-[#00ff88] text-[10px] font-black uppercase tracking-widest mt-1">Gratis Consumation</p>
+                      </div>
+                      <span className="bg-[#ff00ff]/20 text-[#ff00ff] border border-[#ff00ff]/30 text-sm px-4 py-1.5 rounded-full font-black">40€</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/5 rounded-xl text-white/90 font-medium"><span className="w-1.5 h-1.5 bg-[#00ff88] rounded-full"></span><span className="font-['Be_Vietnam_Pro'] text-sm">Diverse Soft Drinks</span></div>
+                      <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/5 rounded-xl text-white/90 font-medium"><span className="w-1.5 h-1.5 bg-[#00ff88] rounded-full"></span><span className="font-['Be_Vietnam_Pro'] text-sm">Orangensaft</span></div>
+                      <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/5 rounded-xl text-white/90 font-medium"><span className="w-1.5 h-1.5 bg-[#00ff88] rounded-full"></span><span className="font-['Be_Vietnam_Pro'] text-sm">Kaffee</span></div>
+                      <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/5 rounded-xl text-white/90 font-medium"><span className="w-1.5 h-1.5 bg-[#00ff88] rounded-full"></span><span className="font-['Be_Vietnam_Pro'] text-sm">Tonic</span></div>
+                      <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/5 rounded-xl text-white/90 font-medium"><span className="w-1.5 h-1.5 bg-[#00ff88] rounded-full"></span><span className="font-['Be_Vietnam_Pro'] text-sm">Coca Cola</span></div>
+                      <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/5 rounded-xl text-white/90 font-medium"><span className="w-1.5 h-1.5 bg-[#00ff88] rounded-full"></span><span className="font-['Be_Vietnam_Pro'] text-sm">Energy Drinks</span></div>
+                      <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/5 rounded-xl text-white/90 font-medium"><span className="w-1.5 h-1.5 bg-[#00ff88] rounded-full"></span><span className="font-['Be_Vietnam_Pro'] text-sm">Bier</span></div>
+                      <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/5 rounded-xl text-white/90 font-medium"><span className="w-1.5 h-1.5 bg-[#00ff88] rounded-full"></span><span className="font-['Be_Vietnam_Pro'] text-sm">Mineralwasser</span></div>
+                      <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/5 rounded-xl text-white/90 font-medium"><span className="w-1.5 h-1.5 bg-[#00ff88] rounded-full"></span><span className="font-['Be_Vietnam_Pro'] text-sm">Wein (Rot &amp; Weiss)</span></div>
+                    </div>
+                    <div className="mt-8 pt-8 border-t border-white/10">
+                      <h4 className="font-['Epilogue'] text-xs font-black text-white/40 uppercase tracking-widest mb-4">Premium Bottles (Gratis)</h4>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center font-['Be_Vietnam_Pro'] text-white/90"><span>Pascha Wodka (0,7 l)</span><span className="text-[#00ff88] text-xs font-bold uppercase tracking-widest">GRATIS</span></div>
+                        <div className="flex justify-between items-center font-['Be_Vietnam_Pro'] text-white/90"><span>Pascha Rum (0,7 l)</span><span className="text-[#00ff88] text-xs font-bold uppercase tracking-widest">GRATIS</span></div>
+                        <div className="flex justify-between items-center font-['Be_Vietnam_Pro'] text-white/90"><span>Pascha Gin (0,7 l)</span><span className="text-[#00ff88] text-xs font-bold uppercase tracking-widest">GRATIS</span></div>
+                        <div className="flex justify-between items-center font-['Be_Vietnam_Pro'] text-white/90"><span>Pascha Whisky (0,7 l)</span><span className="text-[#00ff88] text-xs font-bold uppercase tracking-widest">GRATIS</span></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-12 text-center text-white/30 text-[10px] uppercase tracking-widest font-medium">Unser Etablissement bietet Ihnen eine einzigartige Kombination aus erstklassigem Entertainment und diskretem Service.</div>
+                </div>
+              </section>
+            )}
           </>
         )}
 
@@ -830,67 +960,69 @@ export default function LocationGirls() {
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {sectionGirls.map((g) => (
-                    <div
-                      key={`all-${section.id}-${g.name}`}
-                      onClick={() => navigate(`/profile/${g.name}`, { state: { from: club } })}
-                      className="cursor-pointer glass-card rounded-2xl overflow-hidden transition-all duration-500 group relative hover:shadow-[0_0_40px_rgba(255,0,255,0.25)] border border-white/10"
-                    >
-                      {/* Top Badge - only shown when admin assigns one */}
-                      {g.top_badge && (
-                        <div className="absolute top-3 right-3 z-30 pointer-events-none">
-                          <div className="bg-[#ff00ff]/90 backdrop-blur-md text-white text-[11px] font-black px-3 py-1.5 rounded-full border border-white/20 shadow-[0_0_15px_rgba(255,0,255,0.4)] uppercase tracking-widest">
-                            {g.top_badge}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Available Badge - Top Left */}
-                      <div className="absolute top-3 left-3 z-30 pointer-events-none">
-                        <div className="bg-[#00ff88]/90 backdrop-blur-md text-black text-[11px] font-black px-3 py-1.5 rounded-full border border-[#00ff88]/50 shadow-[0_0_15px_rgba(0,255,136,0.4)] uppercase tracking-widest flex items-center gap-1.5">
-                          <span className="w-2 h-2 bg-black rounded-full animate-pulse shadow-[0_0_8px_rgba(0,0,0,0.5)]"></span>
-                          Available
-                        </div>
-                      </div>
-
-                      <div className="relative h-[380px] overflow-hidden">
-                        {(g.img_type === "video" || isVideoUrl(g.img)) ? (
-                          <video
-                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                            src={g.img}
-                            autoPlay
-                            muted
-                            loop
-                            playsInline
-                          />
-                        ) : (
-                          <img
-                            alt={g.name}
-                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                            src={g.img}
-                            loading="lazy"
-                          />
-                        )}
-
-                        {/* Bottom Info Gradient */}
-                        <div className="absolute bottom-0 left-0 w-full p-5 bg-gradient-to-t from-[#0f0f3d] via-[#0f0f3d]/60 to-transparent z-10">
-                          {/* Phone Badge centered above name */}
-                          <div className="flex justify-center mb-3">
-                            <div className="bg-white/10 backdrop-blur-md text-white text-[12px] font-black px-4 py-1.5 rounded-full border border-white/20 shadow-xl uppercase tracking-widest flex items-center gap-2 group/phone hover:bg-white/20 transition-all">
-                              <FaWhatsapp className="w-4 h-4 text-[#25D366]" />
-                              +43 664 123 456
+                      <div
+                        key={`all-${section.id}-${g.name}`}
+                        onClick={() => navigate(`/profile/${g.name}`, { state: { from: club } })}
+                        className="cursor-pointer glass-card rounded-2xl overflow-hidden transition-all duration-500 group relative hover:shadow-[0_0_40px_rgba(255,0,255,0.25)] border border-white/10"
+                      >
+                        {/* Top Badge - only shown when admin assigns one */}
+                        {g.top_badge && (
+                          <div className="absolute top-3 right-3 z-30 pointer-events-none">
+                            <div className="bg-[#ff00ff]/90 backdrop-blur-md text-white text-[11px] font-black px-3 py-1.5 rounded-full border border-white/20 shadow-[0_0_15px_rgba(255,0,255,0.4)] uppercase tracking-widest">
+                              {g.top_badge}
                             </div>
                           </div>
+                        )}
 
-                          <h3 className="font-['Epilogue'] text-xl font-black text-white tracking-wide mb-1 text-center">
-                            {g.name}
-                          </h3>
-                          <p className="text-white/70 font-['Be_Vietnam_Pro'] text-xs leading-relaxed mb-2 font-medium flex items-center justify-center gap-1.5">
-                            <span className="material-symbols-outlined text-sm text-[#ffabf3]">location_on</span>
-                            Available in {section.title}
-                          </p>
+                        {/* Available Badge - Top Left */}
+                        <div className="absolute top-3 left-3 z-30 pointer-events-none">
+                          <div className="bg-[#00ff88]/90 backdrop-blur-md text-black text-[11px] font-black px-3 py-1.5 rounded-full border border-[#00ff88]/50 shadow-[0_0_15px_rgba(0,255,136,0.4)] uppercase tracking-widest flex items-center gap-1.5">
+                            <span className="w-2 h-2 bg-black rounded-full animate-pulse shadow-[0_0_8px_rgba(0,0,0,0.5)]"></span>
+                            Available
+                          </div>
+                        </div>
+
+                        <div className="relative h-[380px] overflow-hidden">
+                          {(g.img_type === "video" || isVideoUrl(g.img)) ? (
+                            <video
+                              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                              src={g.img}
+                              autoPlay
+                              muted
+                              loop
+                              playsInline
+                            />
+                          ) : (
+                            <img
+                              alt={g.name}
+                              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                              src={g.img}
+                              loading="lazy"
+                            />
+                          )}
+
+                          {/* Bottom Info Gradient */}
+                          <div className="absolute bottom-0 left-0 w-full p-5 bg-gradient-to-t from-[#0f0f3d] via-[#0f0f3d]/60 to-transparent z-10">
+                            {/* Phone Badge centered above name */}
+                            {(g.whatsapp || g.public_number) && (
+                              <div className="flex justify-center mb-3">
+                                <div className="bg-white/10 backdrop-blur-md text-white text-[12px] font-black px-4 py-1.5 rounded-full border border-white/20 shadow-xl uppercase tracking-widest flex items-center gap-2 group/phone hover:bg-white/20 transition-all">
+                                  <FaWhatsapp className="w-4 h-4 text-[#25D366]" />
+                                  {g.whatsapp || g.public_number}
+                                </div>
+                              </div>
+                            )}
+
+                            <h3 className="font-['Epilogue'] text-xl font-black text-white tracking-wide mb-1 text-center">
+                              {g.name}
+                            </h3>
+                            <p className="text-white/70 font-['Be_Vietnam_Pro'] text-xs leading-relaxed mb-2 font-medium flex items-center justify-center gap-1.5">
+                              <span className="material-symbols-outlined text-sm text-[#ffabf3]">location_on</span>
+                              Available in {section.title}
+                            </p>
+                          </div>
                         </div>
                       </div>
-                    </div>
                     ))}
                   </div>
                 )}
@@ -901,32 +1033,32 @@ export default function LocationGirls() {
           <section className="max-w-[1000px] mx-auto px-6 lg:px-8 mb-20 -mt-36 relative z-10">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               {[
-                { 
-                  id: "braunau", 
-                  title: "Pascha Braunau am Inn", 
+                {
+                  id: "braunau",
+                  title: "Pascha Braunau am Inn",
                   img: "/wp-content/uploads/2026/05/hotel-1-scaled.webp",
                   address: "Salzburger Str. 136, 5280 Braunau am Inn"
                 },
-                { 
-                  id: "salzburg", 
-                  title: "Pasha Salzburg", 
+                {
+                  id: "salzburg",
+                  title: "Pasha Salzburg",
                   img: "/wp-content/uploads/2026/05/hotel-2-scaled.webp",
                   address: "Sterneckstraße 14, 5020 Salzburg"
                 }
               ].map((loc) => (
-                <div 
+                <div
                   key={loc.id}
                   onClick={() => navigate(`/work-with-us/${loc.id}`)}
                   className="glass-card rounded-2xl overflow-hidden group cursor-pointer border border-white/10 hover:shadow-[0_0_50px_rgba(255,0,255,0.2)] transition-all duration-500"
                 >
                   <div className="relative h-[400px] overflow-hidden">
-                    <img 
-                      src={loc.img} 
+                    <img
+                      src={loc.img}
                       alt={loc.title}
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 brightness-75 group-hover:brightness-90" 
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 brightness-75 group-hover:brightness-90"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-[#0f0f3d] via-[#0f0f3d]/20 to-transparent" />
-                    
+
                     <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center opacity-0 group-hover:opacity-100 transition-opacity duration-500">
                       <div className="bg-[#ff00ff] text-white px-6 py-3 rounded-xl font-bold uppercase tracking-widest text-xs shadow-lg">
                         Reserve Room Now
@@ -1012,12 +1144,14 @@ export default function LocationGirls() {
                       </p>
 
                       {/* Phone Badge - bottom */}
+                      {g.whatsapp || g.public_number ? (
                         <div className="mt-3 flex justify-center">
                           <div className="bg-[#25D366]/15 text-white text-[13px] font-black px-4 py-2 rounded-full border border-[#25D366]/40 shadow-[0_0_18px_rgba(37,211,102,0.35)] uppercase tracking-[0.18em] flex items-center gap-2 hover:bg-[#25D366]/25 transition-all">
                             <FaWhatsapp className="w-4 h-4 text-[#25D366]" />
-                            +43 664 123 456
+                            {g.whatsapp || g.public_number}
                           </div>
                         </div>
+                      ) : null}
                     </div>
                   </div>
                 </div>
@@ -1067,7 +1201,7 @@ export default function LocationGirls() {
                 {/* Services Left Panel */}
                 <div className="lg:col-span-7 bg-[#0c0f3d]/60 backdrop-blur-xl border border-white/10 rounded-3xl p-8 lg:p-12 flex flex-col justify-between hover:border-[#ff00ff]/30 transition-all duration-500 shadow-2xl relative overflow-hidden">
                   <div className="absolute top-0 right-0 w-64 h-64 bg-[#ff00ff]/5 blur-[80px] rounded-full pointer-events-none" />
-                  
+
                   <div>
                     <div className="flex justify-between items-center mb-10 pb-6 border-b border-white/10">
                       <h3 className="font-['Epilogue'] text-3xl font-black text-white tracking-wider uppercase">Services</h3>
@@ -1075,13 +1209,8 @@ export default function LocationGirls() {
                     </div>
 
                     <div className="space-y-6">
-                      {[
-                        { name: "Pascha Dollar", price: "30" },
-                        { name: "Dusche Show", price: "50" },
-                        { name: "1/2 Stunde (30 Minutes) in room", price: "100" },
-                        { name: "1 Stunde (60 Minutes) in room", price: "200" },
-                      ].map((item) => (
-                        <div key={item.name} className="flex justify-between items-end gap-4 group">
+                      {standardServices.map((item, idx) => (
+                        <div key={item.id || idx} className="flex justify-between items-end gap-4 group">
                           <span className="font-['Be_Vietnam_Pro'] text-white/90 text-lg font-semibold tracking-wide group-hover:text-[#ffabf3] transition-colors">{item.name}</span>
                           <div className="flex-1 border-b border-dashed border-white/10 mb-2 h-0 group-hover:border-white/25 transition-all"></div>
                           <span className="font-['Epilogue'] text-2xl font-black text-white">{item.price}€</span>
@@ -1089,24 +1218,26 @@ export default function LocationGirls() {
                       ))}
                     </div>
 
-                    <div className="mt-12 p-6 bg-white/5 border border-white/10 rounded-2xl">
-                      <h4 className="font-['Epilogue'] text-lg font-black text-[#e9c349] tracking-widest uppercase mb-4">Jacuzzi & Dolls</h4>
-                      <div className="space-y-4">
-                        <div className="flex justify-between items-center">
-                          <span className="font-['Be_Vietnam_Pro'] text-white/80 font-medium">Jacuzzi 1 Stunde</span>
-                          <span className="font-['Epilogue'] text-xl font-bold text-white">300€</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="font-['Be_Vietnam_Pro'] text-white/80 font-medium">Sexdolls 1 Stunde</span>
-                          <span className="font-['Epilogue'] text-xl font-bold text-white">200€</span>
+                    {jacuzziServices.length > 0 && (
+                      <div className="mt-12 p-6 bg-white/5 border border-white/10 rounded-2xl">
+                        <h4 className="font-['Epilogue'] text-lg font-black text-[#e9c349] tracking-widest uppercase mb-4">Jacuzzi & Dolls</h4>
+                        <div className="space-y-4">
+                          {jacuzziServices.map((item, idx) => (
+                            <div key={item.id || idx} className="flex justify-between items-center">
+                              <span className="font-['Be_Vietnam_Pro'] text-white/80 font-medium">{item.name}</span>
+                              <span className="font-['Epilogue'] text-xl font-bold text-white">{item.price}€</span>
+                            </div>
+                          ))}
                         </div>
                       </div>
-                    </div>
+                    )}
                   </div>
 
                   <div className="mt-10">
                     <div className="text-center mb-4">
-                      <span className="text-[#00ff88] text-xl font-black uppercase tracking-widest inline-block drop-shadow-[0_0_10px_rgba(0,255,136,0.6)] animate-pulse">Alles mit Schutz!</span>
+                      <span className="text-[#00ff88] text-xl font-black uppercase tracking-widest inline-block drop-shadow-[0_0_10px_rgba(0,255,136,0.6)] animate-pulse">
+                        {protectionBadge}
+                      </span>
                     </div>
 
                   </div>
@@ -1114,21 +1245,21 @@ export default function LocationGirls() {
 
                 {/* Services Right Promotional Image Panel */}
                 <div className="lg:col-span-5 relative rounded-3xl overflow-hidden min-h-[450px] border border-white/10 group shadow-2xl">
-                  <img 
-                    src="/wp-content/uploads/2026/05/gallery-09-scaled.webp" 
-                    alt="Pascha Salzburg" 
-                    className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000 brightness-[0.4]" 
+                  <img
+                    src="/wp-content/uploads/2026/05/gallery-09-scaled.webp"
+                    alt="Pascha Salzburg"
+                    className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000 brightness-[0.4]"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#0c0f3d] via-transparent to-transparent opacity-90" />
                   <div className="absolute inset-0 flex flex-col justify-end p-8 text-left">
-                    <img 
-                      src="/wp-content/themes/night-club-theme/dist/images/Logo-Pascha-.png" 
-                      alt="Pascha Logo" 
+                    <img
+                      src="/wp-content/themes/night-club-theme/dist/images/Logo-Pascha-.png"
+                      alt="Pascha Logo"
                       className="h-16 w-auto object-contain self-start mb-6 drop-shadow-[0_0_15px_rgba(255,0,255,0.4)]"
                     />
                     <h3 className="font-['Epilogue'] text-2xl font-black text-white uppercase tracking-widest mb-2">Pascha Salzburg</h3>
                     <p className="font-['Be_Vietnam_Pro'] text-white/60 text-sm leading-relaxed mb-4">
-                      Sterneckstraße 14, 5020 Salzburg<br/>
+                      Sterneckstraße 14, 5020 Salzburg<br />
                       www.pascha-salzburg.at
                     </p>
                     <div className="inline-flex items-center gap-2 bg-[#ff00ff]/20 text-[#ff00ff] border border-[#ff00ff]/30 text-[10px] px-4 py-2 rounded-full font-black uppercase tracking-widest w-max">
@@ -1162,51 +1293,38 @@ export default function LocationGirls() {
                 {/* Herren Getränke (Gratis) Panel */}
                 <div className="bg-[#0f0f3d]/60 backdrop-blur-xl border border-white/10 rounded-3xl p-8 lg:p-12 hover:border-[#00ff88]/30 transition-all duration-500 shadow-2xl relative overflow-hidden flex flex-col justify-between">
                   <div className="absolute top-0 left-0 w-64 h-64 bg-[#00ff88]/5 blur-[80px] rounded-full pointer-events-none" />
-                  
+
                   <div>
                     <div className="flex justify-between items-center mb-10 pb-6 border-b border-white/10">
                       <div>
                         <h3 className="font-['Epilogue'] text-3xl font-black text-white tracking-wider uppercase">Herren Getränke</h3>
                         <p className="text-[#00ff88] text-[10px] font-black uppercase tracking-widest mt-1">Gratis Consumation</p>
                       </div>
-<span className="bg-[#ff00ff]/20 text-[#ff00ff] border border-[#ff00ff]/30 text-3xl px-8 py-3 rounded-full font-black">40€</span>
+                      <span className="bg-[#ff00ff]/20 text-[#ff00ff] border border-[#ff00ff]/30 text-3xl px-8 py-3 rounded-full font-black">{herrenEntryPrice}€</span>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {[
-                        "Diverse Soft Drinks",
-                        "Orangensaft",
-                        "Kaffee",
-                        "Tonic",
-                        "Coca Cola",
-                        "Energy Drinks",
-                        "Bier",
-                        "Mineralwasser",
-                        "Wein (Rot & Weiss)"
-                      ].map((drink) => (
-                        <div key={drink} className="flex items-center gap-3 p-3 bg-white/5 border border-white/5 rounded-xl text-white/90 font-medium">
+                      {herrenSoftDrinks.map((drink, idx) => (
+                        <div key={idx} className="flex items-center gap-3 p-3 bg-white/5 border border-white/5 rounded-xl text-white/90 font-medium">
                           <span className="w-1.5 h-1.5 bg-[#00ff88] rounded-full"></span>
                           <span className="font-['Be_Vietnam_Pro'] text-sm">{drink}</span>
                         </div>
                       ))}
                     </div>
 
-                    <div className="mt-8 pt-8 border-t border-white/10">
-                      <h4 className="font-['Epilogue'] text-xs font-black text-white/40 uppercase tracking-widest mb-4">Premium Bottles (Gratis)</h4>
-                      <div className="space-y-3">
-                        {[
-                          "Pascha Wodka (0,7 l)",
-                          "Pascha Rum (0,7 l)",
-                          "Pascha Gin (0,7 l)",
-                          "Pascha Whisky (0,7 l)"
-                        ].map((bottle) => (
-                          <div key={bottle} className="flex justify-between items-center font-['Be_Vietnam_Pro'] text-white/90">
-                            <span>{bottle}</span>
-                            <span className="text-[#00ff88] text-xs font-bold uppercase tracking-widest">GRATIS</span>
-                          </div>
-                        ))}
+                    {herrenBottles.length > 0 && (
+                      <div className="mt-8 pt-8 border-t border-white/10">
+                        <h4 className="font-['Epilogue'] text-xs font-black text-white/40 uppercase tracking-widest mb-4">Premium Bottles (Gratis)</h4>
+                        <div className="space-y-3">
+                          {herrenBottles.map((bottle, idx) => (
+                            <div key={idx} className="flex justify-between items-center font-['Be_Vietnam_Pro'] text-white/90">
+                              <span>{bottle}</span>
+                              <span className="text-[#00ff88] text-xs font-bold uppercase tracking-widest">GRATIS</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
 
                   <div className="mt-12 text-center text-white/30 text-[10px] uppercase tracking-widest font-medium">
@@ -1217,7 +1335,7 @@ export default function LocationGirls() {
                 {/* Damen Getränke Panel */}
                 <div className="bg-[#0f0f3d]/60 backdrop-blur-xl border border-white/10 rounded-3xl p-8 lg:p-12 hover:border-[#e9c349]/30 transition-all duration-500 shadow-2xl relative overflow-hidden">
                   <div className="absolute top-0 right-0 w-64 h-64 bg-[#e9c349]/5 blur-[80px] rounded-full pointer-events-none" />
-                  
+
                   <div className="flex justify-between items-center mb-10 pb-6 border-b border-white/10">
                     <div>
                       <h3 className="font-['Epilogue'] text-3xl font-black text-white tracking-wider uppercase">Damen Getränke</h3>
@@ -1227,19 +1345,8 @@ export default function LocationGirls() {
                   </div>
 
                   <div className="space-y-4">
-                    {[
-                      { name: "Pascha Crystal (0,35 l)", price: "155" },
-                      { name: "Pascha Crystal (0,70 l)", price: "250" },
-                      { name: "Schlumberger (0,7 l)", price: "150" },
-                      { name: "Moët & Chandon (0,30 l)", price: "150" },
-                      { name: "Moët & Chandon (0,70 l)", price: "300" },
-                      { name: "Moët & Chandon Rosé (0,70 l)", price: "350" },
-                      { name: "Moët & Magnum (1,5 l)", price: "650" },
-                      { name: "Cremant (0,7 l)", price: "500" },
-                      { name: "Dom Pérignon (0,7 l)", price: "1000" },
-                      { name: "Nyetimber (0,7 l)", price: "250" },
-                    ].map((item) => (
-                      <div key={item.name} className="flex justify-between items-end gap-4 group">
+                    {damenDrinks.map((item, idx) => (
+                      <div key={item.id || idx} className="flex justify-between items-end gap-4 group">
                         <span className="font-['Be_Vietnam_Pro'] text-white/80 text-sm font-medium tracking-wide group-hover:text-[#e9c349] transition-colors">{item.name}</span>
                         <div className="flex-1 border-b border-dashed border-white/10 mb-1.5 h-0"></div>
                         <span className="font-['Epilogue'] text-base font-extrabold text-white">{item.price}€</span>
@@ -1248,8 +1355,8 @@ export default function LocationGirls() {
                   </div>
 
                   <div className="mt-8 pt-6 border-t border-white/10 flex justify-between items-center text-[#e9c349] text-xs font-bold uppercase tracking-widest">
-                    <span>Diverse Weine</span>
-                    <span>Cubanische Zigarren</span>
+                    <span>{ncPricing?.extra_info?.footer_tags ? ncPricing.extra_info.footer_tags.split(',')[0]?.trim() : 'Diverse Weine'}</span>
+                    <span>{ncPricing?.extra_info?.footer_tags && ncPricing.extra_info.footer_tags.includes(',') ? ncPricing.extra_info.footer_tags.split(',')[1]?.trim() : 'Cubanische Zigarren'}</span>
                   </div>
                 </div>
               </div>
@@ -1324,12 +1431,14 @@ export default function LocationGirls() {
                         </p>
 
                         {/* Phone Badge - bottom */}
-                        <div className="mt-3 flex justify-center">
-                          <div className="bg-[#25D366]/15 text-white text-[13px] font-black px-4 py-2 rounded-full border border-[#25D366]/40 shadow-[0_0_18px_rgba(37,211,102,0.35)] uppercase tracking-[0.18em] flex items-center gap-2 hover:bg-[#25D366]/25 transition-all">
-                            <FaWhatsapp className="w-4 h-4 text-[#25D366]" />
-                            +43 664 123 456
+                        {g.whatsapp || g.public_number ? (
+                          <div className="mt-3 flex justify-center">
+                            <div className="bg-[#25D366]/15 text-white text-[13px] font-black px-4 py-2 rounded-full border border-[#25D366]/40 shadow-[0_0_18px_rgba(37,211,102,0.35)] uppercase tracking-[0.18em] flex items-center gap-2 hover:bg-[#25D366]/25 transition-all">
+                              <FaWhatsapp className="w-4 h-4 text-[#25D366]" />
+                              {g.whatsapp || g.public_number}
+                            </div>
                           </div>
-                        </div>
+                        ) : null}
                       </div>
                     </div>
                   </div>
@@ -1381,7 +1490,12 @@ export default function LocationGirls() {
             Contact Us
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-            <div className="glass-card p-8 rounded-xl text-center transition-all border border-white/15 hover:shadow-[0_0_22px_rgba(255,0,255,0.2)]">
+            <a
+              href={clubInfo.mapLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="glass-card p-8 rounded-xl text-center transition-all border border-white/15 hover:shadow-[0_0_22px_rgba(255,0,255,0.2)] block hover:-translate-y-1"
+            >
               <span className="material-symbols-outlined text-4xl text-[#ffabf3] mb-4">
                 location_on
               </span>
@@ -1391,8 +1505,11 @@ export default function LocationGirls() {
               <p className="font-['Be_Vietnam_Pro'] text-white/70">
                 {clubInfo.address}
               </p>
-            </div>
-            <div className="glass-card p-8 rounded-xl text-center transition-all border border-white/15 hover:shadow-[0_0_22px_rgba(255,0,255,0.2)]">
+            </a>
+            <a
+              href="mailto:info@pascha-salzburg.at"
+              className="glass-card p-8 rounded-xl text-center transition-all border border-white/15 hover:shadow-[0_0_22px_rgba(255,0,255,0.2)] block hover:-translate-y-1"
+            >
               <span className="material-symbols-outlined text-4xl text-[#ffabf3] mb-4">
                 mail
               </span>
@@ -1400,12 +1517,15 @@ export default function LocationGirls() {
                 Email
               </h3>
               <p className="font-['Be_Vietnam_Pro'] text-white/70">
-                office@pascha.com
-                <br />
-                info@pascha.at
+                info@pascha-salzburg.at
               </p>
-            </div>
-            <div className="glass-card p-8 rounded-xl text-center transition-all border border-white/15 hover:shadow-[0_0_22px_rgba(255,0,255,0.2)]">
+            </a>
+            <a
+              href={`https://wa.me/${(clubInfo.whatsapp || "+43 676 3303336").replace(/[^0-9]/g, "")}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="glass-card p-8 rounded-xl text-center transition-all border border-white/15 hover:shadow-[0_0_22px_rgba(255,0,255,0.2)] block hover:-translate-y-1"
+            >
               <span className="material-symbols-outlined text-4xl text-[#ffabf3] mb-4">
                 chat
               </span>
@@ -1417,7 +1537,7 @@ export default function LocationGirls() {
                 <br />
                 Available 24/7
               </p>
-            </div>
+            </a>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
@@ -1454,7 +1574,7 @@ export default function LocationGirls() {
                   <p className="text-white/25 text-[9px] uppercase tracking-widest font-bold mt-0.5 text-left">Request nightclub booking</p>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => setShowNightclubForm(false)}
                 className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-center text-white/30 hover:text-white hover:border-white/20 hover:bg-white/[0.08] transition-all duration-200"
               >
@@ -1463,59 +1583,53 @@ export default function LocationGirls() {
             </div>
             <div className="p-5 sm:p-7">
               <div className="bg-gradient-to-br from-[#E3087E]/10 to-[#ff00ff]/5 border border-[#E3087E]/30 rounded-2xl p-5 sm:p-6 text-left">
-                <h4 className="text-white font-bold text-xs uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[#E3087E] text-sm">schedule</span>Select Your Availability
+                <h4 className="text-white font-bold text-xs uppercase tracking-widest mb-4 flex items-center gap-2 justify-center">
+                  <span className="material-symbols-outlined text-[#E3087E] text-sm">nightlife</span>
+                  Submit Nightclub Request
                 </h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <label className="text-white/50 text-[10px] uppercase tracking-widest font-bold block mb-1.5 text-left">Available From</label>
-                    <input 
-                      type="datetime-local" 
-                      value={ncReqFrom}
-                      onChange={(e) => setNcReqFrom(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-[#E3087E]/50 transition-colors" 
-                    />
-                  </div>
-                  <div>
-                    <label className="text-white/50 text-[10px] uppercase tracking-widest font-bold block mb-1.5 text-left">Available To</label>
-                    <input 
-                      type="datetime-local" 
-                      value={ncReqTo}
-                      onChange={(e) => setNcReqTo(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-[#E3087E]/50 transition-colors" 
-                    />
-                  </div>
-                </div>
-                <button 
+                <p className="text-white/50 text-[11px] text-center mb-5 uppercase tracking-widest leading-relaxed">
+                  By submitting, you request to work in the nightclub tonight (07:00 PM — 07:00 AM).
+                </p>
+                <button
                   onClick={async () => {
-                    if (!ncReqFrom || !ncReqTo) return;
+                    const now = new Date();
+                    const y = now.getFullYear();
+                    const m = String(now.getMonth() + 1).padStart(2, '0');
+                    const d = String(now.getDate()).padStart(2, '0');
+
+                    const tmrw = new Date(now);
+                    tmrw.setDate(tmrw.getDate() + 1);
+                    const y2 = tmrw.getFullYear();
+                    const m2 = String(tmrw.getMonth() + 1).padStart(2, '0');
+                    const d2 = String(tmrw.getDate()).padStart(2, '0');
+
+                    const reqFrom = `${y}-${m}-${d}T19:00:00`;
+                    const reqTo = `${y2}-${m2}-${d2}T07:00:00`;
+
                     setNcReqLoading(true);
                     setNcReqMsg(null);
                     try {
                       const res = await fetch("/wp-json/pascha/v1/nightclub/request", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ email: user.email, nightclub_from_datetime: ncReqFrom, nightclub_to_datetime: ncReqTo })
+                        body: JSON.stringify({ email: user.email, nightclub_from_datetime: reqFrom, nightclub_to_datetime: reqTo })
                       });
                       const data = await res.json();
                       if (res.ok && data.success) {
                         setNcReqMsg({ success: true, message: data.message });
-                        setNcReqFrom(""); 
-                        setNcReqTo("");
                         setTimeout(() => {
-                          setShowNightclubForm(false);
-                          window.location.reload();
+                          window.location.href = "/girls/nightclub?submitted=1";
                         }, 1500);
                       } else {
                         setNcReqMsg({ success: false, message: data.message || "Request failed." });
                       }
                     } catch (err) {
                       setNcReqMsg({ success: false, message: "Network error." });
-                    } finally { 
-                      setNcReqLoading(false); 
+                    } finally {
+                      setNcReqLoading(false);
                     }
                   }}
-                  disabled={ncReqLoading || !ncReqFrom || !ncReqTo}
+                  disabled={ncReqLoading}
                   className="w-full py-3 bg-[#E3087E] text-white font-bold uppercase tracking-widest rounded-xl text-[11px] hover:brightness-110 transition-all shadow-[0_8px_25px_rgba(227,8,126,0.3)] flex items-center justify-center gap-2 disabled:opacity-40"
                 >
                   {ncReqLoading ? (

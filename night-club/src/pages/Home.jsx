@@ -141,40 +141,133 @@ function ServiceCard({ loc, index, t }) {
   );
 }
 
+function BannerItem({ banner, className = "" }) {
+  if (!banner || !banner.image_url || banner.is_active === false) {
+    return null;
+  }
+
+  const content = (
+    <img
+      src={banner.image_url}
+      alt={banner.title || "Banner"}
+      className="w-full h-auto object-cover block"
+      loading="lazy"
+    />
+  );
+
+  if (banner.link_url && banner.link_url.trim()) {
+    return (
+      <a
+        href={banner.link_url}
+        target={banner.open_new_tab !== false ? "_blank" : "_self"}
+        rel="noopener noreferrer"
+        className={`block w-full transition-transform duration-300 hover:opacity-95 ${className}`}
+      >
+        {content}
+      </a>
+    );
+  }
+
+  return <div className={`w-full ${className}`}>{content}</div>;
+}
+
 export default function Home() {
   const navigate = useNavigate();
   const { t } = useLanguage();
   const [footerPad, setFooterPad] = useState(0);
   const [activeHeroIndex, setActiveHeroIndex] = useState(1);
+  const [banners, setBanners] = useState(() => {
+    const initial = {
+      banner_1: {
+        image_url: "/wp-content/themes/night-club-theme/dist/images/Poster.jpg.jpeg",
+        link_url: "https://apeshop.at/",
+        is_active: true,
+        open_new_tab: true,
+      },
+      banner_2: {
+        image_url: "",
+        link_url: "",
+        is_active: true,
+        open_new_tab: true,
+      },
+      banner_3: {
+        image_url: "",
+        link_url: "",
+        is_active: true,
+        open_new_tab: true,
+      },
+    };
+    if (typeof window !== "undefined" && window.paschaBanners && typeof window.paschaBanners === "object") {
+      return { ...initial, ...window.paschaBanners };
+    }
+    return initial;
+  });
+
+  const [mediaSettings, setMediaSettings] = useState(() => {
+    if (typeof window !== "undefined" && window.paschaMedia && typeof window.paschaMedia === "object") {
+      return window.paschaMedia;
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    fetch(`/wp-json/pascha/v1/banners?t=${Date.now()}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && typeof data === "object") {
+          setBanners((prev) => ({
+            ...prev,
+            ...data,
+          }));
+        }
+      })
+      .catch((err) => console.error("Error fetching banners:", err));
+
+    fetch(`/wp-json/pascha/v1/media?t=${Date.now()}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && typeof data === "object") {
+          setMediaSettings(data);
+        }
+      })
+      .catch((err) => console.error("Error fetching media:", err));
+  }, []);
   const heroRef = useRef(null);
   const heroAutoRef = useRef(null);
   const autoRotateRef = useRef(null);
-  const slides = useMemo(() => galleryItems, []);
+  const slides = useMemo(() => {
+    if (mediaSettings?.carousel_items && mediaSettings.carousel_items.length > 0) {
+      return mediaSettings.carousel_items;
+    }
+    return galleryItems;
+  }, [mediaSettings]);
+
   const heroPanels = useMemo(
     () => [
       {
         title: "Pascha Laufhaus - Braunau Am Inn",
         subtitle: "Salzburger Str. 136 // 5280 Braunau am Inn",
-        img: "/wp-content/uploads/2026/05/hero%20laufhaus%20page.jpeg",
+        img: mediaSettings?.section_photos?.braunau || "/wp-content/uploads/2026/05/hero%20laufhaus%20page.jpeg",
         path: "braunau",
         mapLink: "https://maps.app.goo.gl/gM9w6F5DfrXGDjsi9",
       },
       {
         title: "pascha Laufhaus - Salzburg",
         subtitle: "Sterneckstraße 14 // 5020 Salzburg",
-        img: "/wp-content/uploads/2026/05/hero%20laufhaus%20page%2001.jpeg",
+        img: mediaSettings?.section_photos?.salzburg || "/wp-content/uploads/2026/05/hero%20laufhaus%20page%2001.jpeg",
         path: "salzburg",
         mapLink: "https://maps.app.goo.gl/Qb6ShHv4Z7o1EK6L6",
       },
       {
         title: "Pascha nightclub - Salzburg",
         subtitle: "Sterneckstraße 14 // 5020 Salzburg",
-        img: "/wp-content/themes/night-club-theme/dist/images/Nightclub%20Carasol.jpeg",
+        video: mediaSettings?.nightclub_video?.src || undefined,
+        img: mediaSettings?.section_photos?.nightclub || mediaSettings?.nightclub_video?.poster || "/wp-content/themes/night-club-theme/dist/images/Nightclub%20Carasol.jpeg",
         path: "nightclub",
         mapLink: "https://maps.app.goo.gl/Qb6ShHv4Z7o1EK6L6",
       },
     ],
-    []
+    [mediaSettings]
   );
 
   // Marquee-style infinite gallery (BrandLogoMarquee concept)
@@ -239,6 +332,14 @@ export default function Home() {
 
     measure();
     applyTransform();
+
+    // Re-measure when images load
+    const images = group.querySelectorAll("img");
+    images.forEach((img) => {
+      if (!img.complete) {
+        img.addEventListener("load", measure, { once: true });
+      }
+    });
 
     const ro =
       typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => {
@@ -317,8 +418,9 @@ export default function Home() {
       galleryLastTsRef.current = 0;
       ro?.disconnect();
       window.removeEventListener("resize", measure);
+      images.forEach((img) => img.removeEventListener("load", measure));
     };
-  }, []);
+  }, [slides]);
 
   // Hero section mobile scroll tracking and auto-slide
   useEffect(() => {
@@ -404,7 +506,7 @@ export default function Home() {
               className="hero-panel min-w-full snap-start lg:min-w-0 lg:flex-1 flex flex-col h-full transition-all duration-700 ease-in-out group"
               onMouseEnter={() => setActiveHeroIndex(idx)}
               onFocus={() => setActiveHeroIndex(idx)}
-              onClick={() => navigate(`/girls/${panel.path}`)}
+              onClick={() => navigate(`/girls/${panel.path}`, panel.path === "nightclub" ? { state: { fromNightclubCard: true } } : undefined)}
             >
               <div className="relative flex-1 overflow-hidden cursor-pointer">
                 {panel.video ? (
@@ -425,10 +527,10 @@ export default function Home() {
                   />
                 )}
                 <div className="absolute inset-0 bg-gradient-to-t from-[#0F0F3D] via-transparent to-transparent opacity-60" />
-                <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-[92%] lg:w-[88%] opacity-100 transition-opacity duration-500 text-center">
+                <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-[95%] sm:w-[92%] lg:w-[88%] opacity-100 transition-opacity duration-500 text-center">
                   <h2
                     className={[
-                      "font-['Epilogue'] text-[11px] sm:text-[13px] lg:text-[16px] xl:text-[20px] font-extrabold text-white uppercase tracking-tight leading-[1.08] transition-all duration-300 inline-block px-5 py-2.5 border-2 border-white/40 bg-black/20 backdrop-blur-sm hover:border-[#FF00FF] hover:bg-[#FF00FF]/10 hover:shadow-[0_0_20px_rgba(255,0,255,0.4)] group-hover:border-[#FF00FF] group-hover:shadow-[0_0_20px_rgba(255,0,255,0.3)] whitespace-nowrap mx-auto",
+                      "font-['Epilogue'] text-[18px] sm:text-[22px] lg:text-[16px] xl:text-[20px] font-extrabold text-white uppercase tracking-tight leading-[1.08] transition-all duration-300 inline-block px-3.5 sm:px-5 py-2 sm:py-2.5 border-2 border-white/40 bg-black/20 backdrop-blur-sm hover:border-[#FF00FF] hover:bg-[#FF00FF]/10 hover:shadow-[0_0_20px_rgba(255,0,255,0.4)] group-hover:border-[#FF00FF] group-hover:shadow-[0_0_20px_rgba(255,0,255,0.3)] whitespace-nowrap mx-auto",
                       activeHeroIndex === idx ? "opacity-100" : "lg:opacity-60",
                     ].join(" ")}
                   >
@@ -459,9 +561,8 @@ export default function Home() {
           ))}
         </section>
 
-        <a href="https://apeshop.at/" target="_blank" rel="noopener noreferrer" className="block w-full mt-16 mb-8">
-          <img src="/wp-content/themes/night-club-theme/dist/images/Poster.jpg.jpeg" alt="Poster" className="w-full" />
-        </a>
+        {/* Banner 1 (Below Hero Section) */}
+        <BannerItem banner={banners.banner_1} className="mt-16 mb-8" />
 
         <section className="w-full px-6 lg:px-8 py-[50px]">
           <div className="text-center mb-12">
@@ -553,6 +654,9 @@ export default function Home() {
 
 
 
+        {/* Banner 2 (Above Work With Us Section) */}
+        <BannerItem banner={banners.banner_2} />
+
         {/* Work With Us Section - Redesigned to match image */}
         <section className="bg-[#E3087E] py-10 px-6 lg:px-8 relative overflow-hidden">
           <div className="max-w-4xl mx-auto relative z-10 text-center text-black">
@@ -614,7 +718,7 @@ export default function Home() {
             <div className="flex justify-center mb-2">
               <div className="relative">
                 <img
-                  src="/wp-content/themes/night-club-theme/dist/images/Logo-Pascha-.png"
+                  src={mediaSettings?.section_photos?.footer_logo || "/wp-content/themes/night-club-theme/dist/images/Logo-Pascha-.png"}
                   alt="Pascha"
                   className="h-16 lg:h-24 w-auto drop-shadow-[0_0_20px_rgba(255,0,255,0.6)]"
                 />
@@ -646,6 +750,9 @@ export default function Home() {
             </div>
           </div>
         </section>
+
+        {/* Banner 3 (Above The Experience Section) */}
+        <BannerItem banner={banners.banner_3} />
 
         {/* The Experience Section - Polished */}
         <section className="w-full bg-[#0c0f0f] pt-10 pb-10 px-6 lg:px-8 border-t border-white/5">
@@ -687,9 +794,9 @@ export default function Home() {
                 className="flex w-max gap-6 transform-[translate3d(0,0,0)]"
               >
                 <div ref={galleryGroupRef} className="flex shrink-0 gap-6">
-                  {slides.map((slide) => (
+                  {slides.map((slide, sIdx) => (
                     <div
-                      key={slide.title}
+                      key={slide.id || `${slide.title}-${sIdx}`}
                       data-gallery-item
                       className="flex flex-col gap-3 group shrink-0 w-[170px] sm:w-[190px] lg:w-[210px] xl:w-[230px]"
                     >
@@ -720,9 +827,9 @@ export default function Home() {
                 </div>
 
                 <div className="flex shrink-0 gap-6" aria-hidden="true">
-                  {slides.map((slide) => (
+                  {slides.map((slide, sIdx) => (
                     <div
-                      key={`${slide.title}-dup`}
+                      key={`dup-${slide.id || `${slide.title}-${sIdx}`}`}
                       className="flex flex-col gap-3 group shrink-0 w-[170px] sm:w-[190px] lg:w-[210px] xl:w-[230px]"
                     >
                       <div className="aspect-[3/4] overflow-hidden bg-[#1e2020]">

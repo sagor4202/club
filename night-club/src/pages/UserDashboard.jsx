@@ -5,7 +5,13 @@ import Footer from "../components/Footer";
 
 export default function UserDashboard() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, setActiveTab] = useState(() => {
+    return sessionStorage.getItem("userDashboardTab") || "dashboard";
+  });
+
+  useEffect(() => {
+    sessionStorage.setItem("userDashboardTab", activeTab);
+  }, [activeTab]);
   const [footerPad, setFooterPad] = useState(0);
 
   const [user, setUser] = useState(() => {

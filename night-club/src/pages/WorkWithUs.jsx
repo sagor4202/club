@@ -118,12 +118,16 @@ export default function WorkWithUs() {
     const booked = [];
     reservations.forEach((res) => {
       if (res.location === activeLoc) {
-        // If current user is a girl, skip other girls' reservations
+        // If current user is a girl, skip other girls' reservations unless it's a Trans Lady blocking rule
         if (user && user.user_type === "girl") {
           const isMyEmail = res.user_email && user.email && res.user_email === user.email;
           const isMyName = res.girl_name === user.name;
-          if (!isMyEmail && !isMyName) {
-            return; // skip if it's not my reservation
+          const isMine = isMyEmail || isMyName;
+          
+          const isTransBlocking = selectedCategory === "Trans Ladies" && res.girl_category === "Trans Ladies";
+          
+          if (!isMine && !isTransBlocking) {
+            return; // skip if it's not my reservation and not blocking via Trans Ladies rule
           }
         }
 
@@ -525,43 +529,51 @@ export default function WorkWithUs() {
             </div>
             <div className="p-5 sm:p-7">
               <div className="bg-gradient-to-br from-[#E3087E]/10 to-[#ff00ff]/5 border border-[#E3087E]/30 rounded-2xl p-5 sm:p-6">
-                <h4 className="text-white font-bold text-xs uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[#E3087E] text-sm">schedule</span>
-                  Select Your Availability
+                <h4 className="text-white font-bold text-xs uppercase tracking-widest mb-4 flex items-center gap-2 justify-center">
+                  <span className="material-symbols-outlined text-[#E3087E] text-sm">nightlife</span>
+                  Submit Nightclub Request
                 </h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <label className="text-white/50 text-[10px] uppercase tracking-widest font-bold block mb-1.5">Available From</label>
-                    <input type="datetime-local" value={ncReqFrom} onChange={e => setNcReqFrom(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-[#E3087E]/50 transition-colors" />
-                  </div>
-                  <div>
-                    <label className="text-white/50 text-[10px] uppercase tracking-widest font-bold block mb-1.5">Available To</label>
-                    <input type="datetime-local" value={ncReqTo} onChange={e => setNcReqTo(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-[#E3087E]/50 transition-colors" />
-                  </div>
-                </div>
+                <p className="text-white/50 text-[11px] text-center mb-5 uppercase tracking-widest leading-relaxed">
+                  By submitting, you request to work in the nightclub tonight (07:00 PM — 07:00 AM).
+                </p>
                 <button onClick={async () => {
-                  if (!ncReqFrom || !ncReqTo) return;
+                  const now = new Date();
+                  const y = now.getFullYear();
+                  const m = String(now.getMonth() + 1).padStart(2, '0');
+                  const d = String(now.getDate()).padStart(2, '0');
+                  
+                  const tmrw = new Date(now);
+                  tmrw.setDate(tmrw.getDate() + 1);
+                  const y2 = tmrw.getFullYear();
+                  const m2 = String(tmrw.getMonth() + 1).padStart(2, '0');
+                  const d2 = String(tmrw.getDate()).padStart(2, '0');
+
+                  const reqFrom = `${y}-${m}-${d}T19:00:00`;
+                  const reqTo = `${y2}-${m2}-${d2}T07:00:00`;
+
                   setNcReqLoading(true);
                   setNcReqMsg(null);
                   try {
                     const res = await fetch("/wp-json/pascha/v1/nightclub/request", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ email: user.email, nightclub_from_datetime: ncReqFrom, nightclub_to_datetime: ncReqTo })
+                      body: JSON.stringify({ email: user.email, nightclub_from_datetime: reqFrom, nightclub_to_datetime: reqTo })
                     });
                     const data = await res.json();
                     if (res.ok && data.success) {
                       setNcReqMsg({ success: true, message: data.message });
-                      setNcReqFrom(""); setNcReqTo("");
                       const r = await fetch(`/wp-json/pascha/v1/reservations?t=${Date.now()}`);
                       if (r.ok) setReservations(await r.json());
+                      setTimeout(() => {
+                        window.location.href = "/girls/nightclub?submitted=1";
+                      }, 1500);
                     } else {
                       setNcReqMsg({ success: false, message: data.message || "Request failed." });
                     }
                   } catch (err) {
                     setNcReqMsg({ success: false, message: "Network error." });
                   } finally { setNcReqLoading(false); }
-                }} disabled={ncReqLoading || !ncReqFrom || !ncReqTo} className="w-full py-3 bg-[#E3087E] text-white font-bold uppercase tracking-widest rounded-xl text-[11px] hover:brightness-110 transition-all shadow-[0_8px_25px_rgba(227,8,126,0.3)] flex items-center justify-center gap-2 disabled:opacity-40">
+                }} disabled={ncReqLoading} className="w-full py-3 bg-[#E3087E] text-white font-bold uppercase tracking-widest rounded-xl text-[11px] hover:brightness-110 transition-all shadow-[0_8px_25px_rgba(227,8,126,0.3)] flex items-center justify-center gap-2 disabled:opacity-40">
                   {ncReqLoading ? <><span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" /> Submitting...</> : <><span className="material-symbols-outlined text-sm">send</span> Submit Request</>}
                 </button>
                 {ncReqMsg && (
